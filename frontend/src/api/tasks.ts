@@ -17,6 +17,7 @@ export interface TaskExecution {
   crawler?: {
     id: number
     name: string
+    command: string
   }
   schedule?: {
     id: number

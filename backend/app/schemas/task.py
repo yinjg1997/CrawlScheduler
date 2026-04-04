@@ -18,6 +18,7 @@ class CrawlerInfo(BaseModel):
     """Crawler information embedded in task response"""
     id: int
     name: str
+    command: str
 
     class Config:
         from_attributes = True

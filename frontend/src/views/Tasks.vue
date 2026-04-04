@@ -97,6 +97,12 @@
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="命令" width="300" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span v-if="row.crawler">{{ row.crawler.command }}</span>
+          <span v-else class="text-gray-400">-</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="duration" label="耗时(秒)" width="100">
         <template #default="{ row }">
           {{ row.duration || '-' }}

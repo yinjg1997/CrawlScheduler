@@ -28,13 +28,13 @@
               <el-icon><Monitor /></el-icon>
               <span>爬虫管理</span>
             </el-menu-item>
-            <el-menu-item index="/tasks">
-              <el-icon><List /></el-icon>
-              <span>任务列表</span>
-            </el-menu-item>
             <el-menu-item index="/schedules">
               <el-icon><Timer /></el-icon>
               <span>定时任务</span>
+            </el-menu-item>
+            <el-menu-item index="/tasks">
+              <el-icon><List /></el-icon>
+              <span>任务列表</span>
             </el-menu-item>
             <el-menu-item index="/python-environments">
               <el-icon><Setting /></el-icon>
