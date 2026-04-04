@@ -61,9 +61,7 @@
       </el-table-column>
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
-          <el-tag :type="row.is_active ? 'success' : 'info'">
-            {{ row.is_active ? '启用' : '禁用' }}
-          </el-tag>
+          <el-switch v-model="row.is_active" @change="toggleSchedule(row)" />
         </template>
       </el-table-column>
       <el-table-column prop="created_at" label="创建时间" width="180">
@@ -71,15 +69,8 @@
           {{ formatDate(row.created_at) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="220" fixed="right">
+      <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button
-            type="primary"
-            size="small"
-            @click="toggleSchedule(row)"
-          >
-            {{ row.is_active ? '禁用' : '启用' }}
-          </el-button>
           <el-button
             type="primary"
             size="small"

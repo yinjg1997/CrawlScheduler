@@ -87,6 +87,8 @@ class ScheduleService:
         # Calculate next run time with timezone
         cron = croniter(schedule.cron_expression, datetime.now(ZoneInfo(settings.TIMEZONE)))
         next_run_time = cron.get_next(datetime)
+        # Add timezone to next_run_time to avoid incorrect timezone conversion
+        next_run_time = next_run_time.replace(tzinfo=ZoneInfo(settings.TIMEZONE))
 
         db_schedule = Schedule(**schedule.model_dump())
         db_schedule.next_run_time = next_run_time
@@ -118,7 +120,9 @@ class ScheduleService:
         # Recalculate next run time if cron expression changed
         if 'cron_expression' in update_data:
             cron = croniter(update_data['cron_expression'], datetime.now(ZoneInfo(settings.TIMEZONE)))
-            db_schedule.next_run_time = cron.get_next(datetime)
+            next_run_time = cron.get_next(datetime)
+            # Add timezone to next_run_time to avoid incorrect timezone conversion
+            db_schedule.next_run_time = next_run_time.replace(tzinfo=ZoneInfo(settings.TIMEZONE))
 
         for field, value in update_data.items():
             setattr(db_schedule, field, value)
@@ -172,7 +176,9 @@ class ScheduleService:
             return None
 
         cron = croniter(db_schedule.cron_expression, datetime.now(ZoneInfo(settings.TIMEZONE)))
-        db_schedule.next_run_time = cron.get_next(datetime)
+        next_run_time = cron.get_next(datetime)
+        # Add timezone to next_run_time to avoid incorrect timezone conversion
+        db_schedule.next_run_time = next_run_time.replace(tzinfo=ZoneInfo(settings.TIMEZONE))
 
         await db.commit()
         await db.refresh(db_schedule)

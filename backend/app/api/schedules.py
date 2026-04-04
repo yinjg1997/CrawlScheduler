@@ -24,11 +24,13 @@ async def preview_next_run(
 
         cron = croniter(cron_expression, datetime.now(ZoneInfo(settings.TIMEZONE)))
         next_run = cron.get_next(datetime)
+        # Add timezone to avoid incorrect timezone conversion in frontend
+        next_run = next_run.replace(tzinfo=ZoneInfo(settings.TIMEZONE))
 
         return {
             "cron_expression": cron_expression,
             "next_run_time": next_run,
-            "next_run_time_utc": next_run
+            "next_run_time_utc": next_run.astimezone(timezone.utc)
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

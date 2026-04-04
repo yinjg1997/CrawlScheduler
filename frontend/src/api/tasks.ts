@@ -53,6 +53,9 @@ export const tasksApi = {
   cancel: (id: number) =>
     api.post<{ message: string }>(`/tasks/${id}/cancel`),
 
+  retry: (id: number) =>
+    api.post<{ task_id: number; message: string }>(`/tasks/${id}/retry`),
+
   getStatus: (id: number) =>
     api.get<{ task_id: number; status: string; is_running: boolean }>(`/tasks/${id}/status`),
 

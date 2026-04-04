@@ -103,6 +103,34 @@ async def cancel_task(
         return {"message": "Task status updated to cancelled"}
 
 
+@router.post("/{task_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+async def retry_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Retry a task by creating a new task execution"""
+    task = await TaskService.get_by_id(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    try:
+        # Create a new task with the same crawler and schedule
+        new_task = await TaskService.create(
+            db,
+            task.crawler_id,
+            triggered_by="manual",
+            schedule_id=task.schedule_id
+        )
+
+        # Execute task in background
+        import asyncio
+        asyncio.create_task(TaskExecutor.execute(db, new_task.id))
+
+        return {"task_id": new_task.id, "message": "Task retry started"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.get("/{task_id}/status")
 async def get_task_status(
     task_id: int,

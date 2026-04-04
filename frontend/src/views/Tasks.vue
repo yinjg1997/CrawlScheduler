@@ -119,7 +119,7 @@
           {{ formatDate(row.created_at) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="280" fixed="right">
         <template #default="{ row }">
           <el-button
             type="primary"
@@ -128,6 +128,14 @@
             @click="viewTask(row)"
           >
             详情
+          </el-button>
+          <el-button
+            type="warning"
+            size="small"
+            text
+            @click="retryTask(row)"
+          >
+            重试
           </el-button>
           <el-button
             v-if="row.status === 'pending' || row.status === 'running'"
@@ -310,6 +318,17 @@ const cancelTask = async (task: TaskExecution) => {
     ElMessage.success('任务已取消')
   } catch (error) {
     console.error('Failed to cancel:', error)
+  }
+}
+
+const retryTask = async (task: TaskExecution) => {
+  try {
+    const result = await tasksApi.retry(task.id)
+    ElMessage.success(`任务已重新执行: ID ${result.task_id}`)
+    router.push(`/tasks/${result.task_id}`)
+  } catch (error) {
+    console.error('Failed to retry:', error)
+    ElMessage.error('重试失败')
   }
 }
 

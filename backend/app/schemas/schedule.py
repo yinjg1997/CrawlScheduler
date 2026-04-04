@@ -67,6 +67,7 @@ class ScheduleResponse(ScheduleBase):
         if dt is None:
             return None
         # If datetime is naive, assume it's UTC and convert to target timezone
+        # If datetime has timezone info, convert directly to target timezone
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         # Convert to configured timezone (East 8)
