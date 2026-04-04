@@ -19,13 +19,6 @@
           <span v-else class="text-gray-400">默认</span>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="100">
-        <template #default="{ row }">
-          <el-tag :type="row.is_active ? 'success' : 'info'">
-            {{ row.is_active ? '启用' : '禁用' }}
-          </el-tag>
-        </template>
-      </el-table-column>
       <el-table-column prop="created_at" label="创建时间" width="180">
         <template #default="{ row }">
           {{ formatDate(row.created_at) }}
@@ -37,7 +30,6 @@
             type="primary"
             size="small"
             @click="executeCrawler(row)"
-            :disabled="!row.is_active"
           >
             执行
           </el-button>
@@ -121,9 +113,6 @@
             选择conda环境或自定义Python解释器路径
           </el-text>
         </el-form-item>
-        <el-form-item label="状态" prop="is_active">
-          <el-switch v-model="form.is_active" />
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -158,8 +147,7 @@ const form = reactive<CrawlerCreate & { id?: number }>({
   description: '',
   command: '',
   working_directory: '',
-  python_executable: '',
-  is_active: true
+  python_executable: ''
 })
 
 const rules = {
@@ -187,8 +175,7 @@ const showCreateDialog = async () => {
     description: '',
     command: '',
     working_directory: '',
-    python_executable: '',
-    is_active: true
+    python_executable: ''
   })
 
   await fetchPythonEnvironments()
