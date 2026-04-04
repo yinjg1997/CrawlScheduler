@@ -78,9 +78,11 @@ async def delete_python_environment(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/all/environments", response_model=List[PythonEnvironmentListItem])
+@router.get("/all/environments")
 async def get_all_environments_with_system(
+    skip: int = 0,
+    limit: int = 100,
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all environments including system, conda, and user-defined environments"""
-    return await PythonEnvironmentService.get_all_environments_with_system(db)
+    """Get all environments including system, conda, and user-defined environments with pagination"""
+    return await PythonEnvironmentService.get_all_environments_with_system(db, skip=skip, limit=limit)

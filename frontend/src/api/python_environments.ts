@@ -55,6 +55,9 @@ export const pythonEnvironmentsApi = {
   delete: (id: number) =>
     api.delete(`/python-environments/${id}`),
 
-  getAllEnvironments: () =>
-    api.get<PythonEnvironmentListItem[]>('/python-environments/all/environments')
+  getAllEnvironments: (params?: { skip?: number; limit?: number }) =>
+    api.get<{
+      total: number
+      items: PythonEnvironmentListItem[]
+    }>('/python-environments/all/environments', { params })
 }

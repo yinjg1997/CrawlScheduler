@@ -33,6 +33,11 @@ export interface ScheduleUpdate {
   next_run_time?: string
 }
 
+export interface PaginatedSchedules {
+  total: number
+  items: Schedule[]
+}
+
 export const schedulesApi = {
   list: (params?: {
     skip?: number
@@ -41,7 +46,7 @@ export const schedulesApi = {
     start_date?: string
     end_date?: string
   }) =>
-    api.get<Schedule[]>('/schedules/', { params }),
+    api.get<PaginatedSchedules>('/schedules/', { params }),
 
   get: (id: number) =>
     api.get<Schedule>(`/schedules/${id}`),

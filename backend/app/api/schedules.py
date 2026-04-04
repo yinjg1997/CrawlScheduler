@@ -54,7 +54,7 @@ async def create_schedule(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/", response_model=List[ScheduleResponse])
+@router.get("/")
 async def get_schedules(
     skip: int = 0,
     limit: int = 100,

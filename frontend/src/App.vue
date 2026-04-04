@@ -2,20 +2,10 @@
   <div id="app">
     <el-container class="app-container">
       <el-header class="app-header">
-        <div class="header-content">
-          <h1 class="app-title">
-            <el-icon><Spider /></el-icon>
-            CrawlScheduler
-          </h1>
-          <el-button
-            type="primary"
-            @click="refreshData"
-            :loading="refreshing"
-          >
-            <el-icon><Refresh /></el-icon>
-            刷新
-          </el-button>
-        </div>
+        <h1 class="app-title">
+          <el-icon><Spider /></el-icon>
+          CrawlScheduler
+        </h1>
       </el-header>
       <el-container>
         <el-aside width="200px" class="app-aside">
@@ -51,20 +41,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
-const refreshing = ref(false)
 
 const activeMenu = computed(() => route.path)
-
-const refreshData = () => {
-  refreshing.value = true
-  setTimeout(() => {
-    refreshing.value = false
-  }, 500)
-}
 </script>
 
 <style scoped>
@@ -86,13 +68,6 @@ const refreshData = () => {
   display: flex;
   align-items: center;
   padding: 0 20px;
-}
-
-.header-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
 }
 
 .app-title {

@@ -15,7 +15,7 @@ class BulkDeleteRequest(BaseModel):
     task_ids: List[int]
 
 
-@router.get("/", response_model=List[TaskExecutionResponse])
+@router.get("/")
 async def get_tasks(
     skip: int = 0,
     limit: int = 100,

@@ -8,23 +8,24 @@
       </el-button>
     </div>
 
-    <el-table :data="store.crawlers" v-loading="store.loading" stripe>
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column prop="name" label="名称" />
-      <el-table-column prop="description" label="描述" show-overflow-tooltip />
-      <el-table-column prop="command" label="命令" show-overflow-tooltip />
-      <el-table-column label="Python环境" width="150" show-overflow-tooltip>
-        <template #default="{ row }">
-          <span v-if="row.python_executable">{{ row.python_executable }}</span>
-          <span v-else class="text-gray-400">默认</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" width="180">
-        <template #default="{ row }">
-          {{ formatDate(row.created_at) }}
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="220" fixed="right">
+    <div class="table-container">
+      <el-table :data="crawlers" v-loading="store.loading" stripe>
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="name" label="名称" />
+        <el-table-column prop="description" label="描述" show-overflow-tooltip />
+        <el-table-column prop="command" label="命令" show-overflow-tooltip />
+        <el-table-column label="Python环境" width="150" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.python_executable">{{ row.python_executable }}</span>
+            <span v-else class="text-gray-400">默认</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="创建时间" width="180">
+          <template #default="{ row }">
+            {{ formatDate(row.created_at) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="220">
         <template #default="{ row }">
           <el-button
             type="primary"
@@ -52,6 +53,18 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
+
+    <el-pagination
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :page-sizes="[10, 20, 50, 100]"
+      :total="total"
+      layout="total, sizes, prev, pager, next, jumper"
+      @size-change="handleSizeChange"
+      @current-change="handleCurrentChange"
+      background
+    />
 
     <!-- Create/Edit Dialog -->
     <el-dialog
@@ -129,7 +142,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '@/store'
-import { type Crawler, type CrawlerCreate, type CrawlerUpdate } from '@/api/crawlers'
+import { crawlersApi, type Crawler, type CrawlerCreate, type CrawlerUpdate } from '@/api/crawlers'
 import { pythonEnvironmentsApi, type PythonEnvironmentListItem } from '@/api/python_environments'
 import { Plus } from '@element-plus/icons-vue'
 
@@ -141,6 +154,10 @@ const isEdit = ref(false)
 const submitting = ref(false)
 const formRef = ref()
 const pythonEnvironments = ref<PythonEnvironmentListItem[]>([])
+const crawlers = ref<Crawler[]>([])
+const currentPage = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
 
 const form = reactive<CrawlerCreate & { id?: number }>({
   name: '',
@@ -197,9 +214,11 @@ const handleSubmit = async () => {
   try {
     if (isEdit.value) {
       await store.updateCrawler(form.id!, form as CrawlerUpdate)
+      await fetchCrawlers()
       ElMessage.success('更新成功')
     } else {
       await store.createCrawler(form)
+      await fetchCrawlers()
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
@@ -213,6 +232,7 @@ const handleSubmit = async () => {
 const deleteCrawler = async (id: number) => {
   try {
     await store.deleteCrawler(id)
+    await fetchCrawlers()
     ElMessage.success('删除成功')
   } catch (error) {
     console.error('Failed to delete:', error)
@@ -229,8 +249,28 @@ const executeCrawler = async (crawler: Crawler) => {
   }
 }
 
+const fetchCrawlers = async () => {
+  const response = await crawlersApi.list({
+    skip: (currentPage.value - 1) * pageSize.value,
+    limit: pageSize.value
+  })
+  crawlers.value = response.items
+  total.value = response.total
+}
+
+const handleSizeChange = (newSize: number) => {
+  pageSize.value = newSize
+  currentPage.value = 1
+  fetchCrawlers()
+}
+
+const handleCurrentChange = (newPage: number) => {
+  currentPage.value = newPage
+  fetchCrawlers()
+}
+
 onMounted(() => {
-  store.fetchCrawlers()
+  fetchCrawlers()
 })
 </script>
 
@@ -254,7 +294,22 @@ onMounted(() => {
 
 :deep(.el-table) {
   flex: 1;
-  overflow: auto;
+}
+
+.table-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+:deep(.el-table__body-wrapper) {
+  overflow-y: auto;
+  max-height: calc(100vh - 400px);
+}
+
+.el-pagination {
+  padding: 16px 0 0 0;
+  flex-shrink: 0;
 }
 
 .env-option {

@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
-from typing import List, Optional
+from sqlalchemy import select, update, delete, func
+from typing import List, Optional, Dict, Any
 import subprocess
 import shutil
 
@@ -177,9 +177,11 @@ class PythonEnvironmentService:
 
     @staticmethod
     async def get_all_environments_with_system(
-        db: AsyncSession
-    ) -> List[PythonEnvironmentListItem]:
-        """Get all environments including system and conda environments"""
+        db: AsyncSession,
+        skip: int = 0,
+        limit: int = 100
+    ) -> Dict[str, Any]:
+        """Get all environments including system and conda environments with pagination"""
         environments = []
 
         # Add system Python
@@ -193,7 +195,7 @@ class PythonEnvironmentService:
             environments.append(PythonEnvironmentListItem(**env))
 
         # Add user-defined environments
-        user_envs = await PythonEnvironmentService.get_all(db)
+        user_envs = await PythonEnvironmentService.get_all(db, skip=0, limit=1000)  # Get all user envs first
         for env in user_envs:
             environments.append(PythonEnvironmentListItem(
                 id=env.id,
@@ -204,4 +206,13 @@ class PythonEnvironmentService:
                 is_active=env.is_active
             ))
 
-        return environments
+        # Get total count
+        total = len(environments)
+
+        # Apply pagination
+        paginated_environments = environments[skip:skip + limit]
+
+        return {
+            "total": total,
+            "items": paginated_environments
+        }

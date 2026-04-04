@@ -11,10 +11,17 @@ export const useAppStore = defineStore('app', () => {
   const loading = ref(false)
 
   // Crawler actions
-  const fetchCrawlers = async () => {
+  const fetchCrawlers = async (params?: { skip?: number; limit?: number }) => {
     loading.value = true
     try {
-      crawlers.value = await crawlersApi.list()
+      const response = await crawlersApi.list(params)
+      if (params) {
+        // Paginated response
+        crawlers.value = response.items
+      } else {
+        // Get all crawlers (no pagination)
+        crawlers.value = response.items
+      }
     } catch (error) {
       console.error('Failed to fetch crawlers:', error)
     } finally {
@@ -70,7 +77,8 @@ export const useAppStore = defineStore('app', () => {
   }) => {
     loading.value = true
     try {
-      schedules.value = await schedulesApi.list(params)
+      const response = await schedulesApi.list(params)
+      schedules.value = response.items
     } catch (error) {
       console.error('Failed to fetch schedules:', error)
     } finally {

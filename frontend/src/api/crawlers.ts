@@ -41,9 +41,14 @@ export interface CrawlerUpdate {
   is_active?: boolean
 }
 
+export interface PaginatedCrawlers {
+  total: number
+  items: Crawler[]
+}
+
 export const crawlersApi = {
   list: (params?: { skip?: number; limit?: number }) =>
-    api.get<Crawler[]>('/crawlers/', { params }),
+    api.get<PaginatedCrawlers>('/crawlers/', { params }),
 
   get: (id: number) =>
     api.get<Crawler>(`/crawlers/${id}`),

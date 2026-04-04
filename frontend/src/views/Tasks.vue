@@ -58,7 +58,116 @@
       <el-tab-pane label="失败" name="failed" />
     </el-tabs>
 
-    <div class="toolbar">
+    <div class="table-container">
+      <el-table
+        :data="filteredTasks"
+        v-loading="loading"
+        stripe
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="55" />
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column label="爬虫" width="150">
+          <template #default="{ row }">
+            <span v-if="row.crawler">{{ row.crawler.name }}</span>
+            <span v-else class="text-gray-400">#{{ row.crawler_id }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="getStatusType(row.status)">
+              {{ getStatusLabel(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="触发方式" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.triggered_by === 'manual' ? '' : 'warning'" size="small">
+              {{ row.triggered_by === 'manual' ? '手动' : '定时' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="命令" width="300" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.crawler">{{ row.crawler.command }}</span>
+            <span v-else class="text-gray-400">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="duration" label="耗时(秒)" width="100">
+          <template #default="{ row }">
+            {{ row.duration || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="exit_code" label="退出码" width="80">
+          <template #default="{ row }">
+            <span v-if="row.exit_code !== null">{{ row.exit_code }}</span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="创建时间" width="180">
+          <template #default="{ row }">
+            {{ formatDate(row.created_at) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="280">
+          <template #default="{ row }">
+            <el-button
+              type="primary"
+              size="small"
+              text
+              @click="viewTask(row)"
+            >
+              详情
+            </el-button>
+            <el-button
+              type="warning"
+              size="small"
+              text
+              @click="retryTask(row)"
+            >
+              重试
+            </el-button>
+            <el-button
+              v-if="row.status === 'pending' || row.status === 'running'"
+              type="danger"
+              size="small"
+              text
+              @click="cancelTask(row)"
+            >
+              取消
+            </el-button>
+            <el-popconfirm
+              v-if="row.status !== 'running'"
+              title="确定要删除这条任务记录吗？"
+              @confirm="deleteTask(row)"
+            >
+              <template #reference>
+                <el-button
+                  type="danger"
+                  size="small"
+                  text
+                >
+                  删除
+                </el-button>
+              </template>
+            </el-popconfirm>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <div class="pagination-toolbar">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+        background
+      />
+
       <el-button
         type="danger"
         :disabled="selectedTasks.length === 0"
@@ -68,102 +177,6 @@
         批量删除 ({{ selectedTasks.length }})
       </el-button>
     </div>
-
-    <el-table
-      :data="filteredTasks"
-      v-loading="loading"
-      stripe
-      @selection-change="handleSelectionChange"
-    >
-      <el-table-column type="selection" width="55" />
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column label="爬虫" width="150">
-        <template #default="{ row }">
-          <span v-if="row.crawler">{{ row.crawler.name }}</span>
-          <span v-else class="text-gray-400">#{{ row.crawler_id }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" width="100">
-        <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)">
-            {{ getStatusLabel(row.status) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="触发方式" width="100">
-        <template #default="{ row }">
-          <el-tag :type="row.triggered_by === 'manual' ? '' : 'warning'" size="small">
-            {{ row.triggered_by === 'manual' ? '手动' : '定时' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="命令" width="300" show-overflow-tooltip>
-        <template #default="{ row }">
-          <span v-if="row.crawler">{{ row.crawler.command }}</span>
-          <span v-else class="text-gray-400">-</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="duration" label="耗时(秒)" width="100">
-        <template #default="{ row }">
-          {{ row.duration || '-' }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="exit_code" label="退出码" width="80">
-        <template #default="{ row }">
-          <span v-if="row.exit_code !== null">{{ row.exit_code }}</span>
-          <span v-else>-</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" width="180">
-        <template #default="{ row }">
-          {{ formatDate(row.created_at) }}
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="280" fixed="right">
-        <template #default="{ row }">
-          <el-button
-            type="primary"
-            size="small"
-            text
-            @click="viewTask(row)"
-          >
-            详情
-          </el-button>
-          <el-button
-            type="warning"
-            size="small"
-            text
-            @click="retryTask(row)"
-          >
-            重试
-          </el-button>
-          <el-button
-            v-if="row.status === 'pending' || row.status === 'running'"
-            type="danger"
-            size="small"
-            text
-            @click="cancelTask(row)"
-          >
-            取消
-          </el-button>
-          <el-popconfirm
-            v-if="row.status !== 'running'"
-            title="确定要删除这条任务记录吗？"
-            @confirm="deleteTask(row)"
-          >
-            <template #reference>
-              <el-button
-                type="danger"
-                size="small"
-                text
-              >
-                删除
-              </el-button>
-            </template>
-          </el-popconfirm>
-        </template>
-      </el-table-column>
-    </el-table>
   </div>
 </template>
 
@@ -185,6 +198,9 @@ const searchKeyword = ref('')
 const dateRange = ref<[string, string] | null>(null)
 const crawlers = ref<{ id: number; name: string }[]>([])
 const selectedTasks = ref<TaskExecution[]>([])
+const currentPage = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
 
 // Debounced search handler
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -198,22 +214,22 @@ const handleSearchDebounced = () => {
 }
 
 const handleSearch = () => {
-  // Trigger refetch with search parameter
+  currentPage.value = 1
   fetchTasks()
 }
 
 const handleDateRangeChange = () => {
-  // Trigger refetch with date range
+  currentPage.value = 1
   fetchTasks()
 }
 
 const handleCrawlerFilter = () => {
-  // Trigger refetch with crawler filter
+  currentPage.value = 1
   fetchTasks()
 }
 
 const handleTabChange = () => {
-  // Tab change triggers refetch
+  currentPage.value = 1
   fetchTasks()
 }
 
@@ -222,19 +238,24 @@ const resetFilters = () => {
   dateRange.value = null
   selectedCrawlerId.value = undefined
   activeTab.value = 'all'
+  currentPage.value = 1
   fetchTasks()
 }
 
 const filteredTasks = computed(() => {
-  let tasks = store.tasks
-
-  // Filter by status (frontend filter for tabs)
-  if (activeTab.value !== 'all') {
-    tasks = tasks.filter(task => task.status === activeTab.value)
-  }
-
-  return tasks
+  return store.tasks
 })
+
+const handleSizeChange = (newSize: number) => {
+  pageSize.value = newSize
+  currentPage.value = 1
+  fetchTasks()
+}
+
+const handleCurrentChange = (newPage: number) => {
+  currentPage.value = newPage
+  fetchTasks()
+}
 
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleString('zh-CN')
@@ -281,7 +302,12 @@ const fetchTasks = async () => {
     search?: string
     date_from?: string
     date_to?: string
-  } = {}
+    skip?: number
+    limit?: number
+  } = {
+    skip: (currentPage.value - 1) * pageSize.value,
+    limit: pageSize.value
+  }
 
   if (selectedCrawlerId.value !== undefined) {
     params.crawler_id = selectedCrawlerId.value
@@ -300,8 +326,9 @@ const fetchTasks = async () => {
     params.date_to = dateRange.value[1]
   }
 
-  const tasks = await tasksApi.list(params)
-  store.tasks = tasks  // Update store with fetched tasks
+  const response = await tasksApi.list(params)
+  store.tasks = response.items
+  total.value = response.total
   await store.fetchCrawlers()
   // Update crawlers list from store
   crawlers.value = store.crawlers.map(c => ({ id: c.id, name: c.name }))
@@ -394,6 +421,7 @@ onMounted(async () => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .page-header {
@@ -407,14 +435,16 @@ onMounted(async () => {
   margin: 0;
 }
 
-.toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 16px;
-}
-
 :deep(.el-tabs) {
   margin-bottom: 20px;
+}
+
+.pagination-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0 0 0;
+  flex-shrink: 0;
 }
 
 .filter-bar {
@@ -425,9 +455,20 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
-:deep(.el-table) {
+.table-container {
   flex: 1;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+:deep(.el-table) {
+  height: 100%;
+  overflow: hidden;
+}
+
+:deep(.el-table__body-wrapper) {
+  overflow-y: auto;
+  max-height: calc(100vh - 400px);
 }
 
 .text-gray-400 {

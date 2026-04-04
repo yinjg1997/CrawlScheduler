@@ -3,8 +3,14 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
+from pydantic import BaseModel
 from ..models import TaskExecution, Crawler
 from ..schemas.task import TaskExecutionResponse
+
+
+class PaginatedResponse(BaseModel):
+    total: int
+    items: List[TaskExecutionResponse]
 
 
 class TaskService:
@@ -20,8 +26,8 @@ class TaskService:
         search: Optional[str] = None,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None
-    ) -> List[TaskExecution]:
-        """Get all task executions with filters"""
+    ) -> dict:
+        """Get all task executions with filters and pagination"""
         query = select(TaskExecution)
 
         if crawler_id is not None:
@@ -53,13 +59,24 @@ class TaskService:
             except ValueError:
                 pass
 
+        # Get total count
+        count_query = select(func.count()).select_from(query.subquery())
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
+
+        # Get paginated results
         query = query.options(
             selectinload(TaskExecution.crawler),
             selectinload(TaskExecution.schedule)
         ).order_by(TaskExecution.created_at.desc()).offset(skip).limit(limit)
 
         result = await db.execute(query)
-        return list(result.scalars().all())
+        items = list(result.scalars().all())
+
+        return {
+            "total": total,
+            "items": items
+        }
 
     @staticmethod
     async def get_by_id(db: AsyncSession, task_id: int) -> Optional[TaskExecution]:

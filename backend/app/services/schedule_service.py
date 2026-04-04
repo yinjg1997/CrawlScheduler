@@ -1,8 +1,8 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
 from croniter import croniter
 from ..models import Schedule
@@ -21,7 +21,7 @@ class ScheduleService:
         search: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None
-    ) -> List[Schedule]:
+    ) -> Dict[str, Any]:
         """Get all schedules with optional search and date filtering"""
         query = select(Schedule).options(selectinload(Schedule.crawler))
 
@@ -56,10 +56,21 @@ class ScheduleService:
         if conditions:
             query = query.where(and_(*conditions))
 
+        # Get total count
+        count_query = select(func.count()).select_from(query.subquery())
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
+
+        # Get paginated results
         query = query.offset(skip).limit(limit).order_by(Schedule.created_at.desc())
 
         result = await db.execute(query)
-        return list(result.scalars().all())
+        items = list(result.scalars().all())
+
+        return {
+            "total": total,
+            "items": items
+        }
 
     @staticmethod
     async def get_by_id(db: AsyncSession, schedule_id: int) -> Optional[Schedule]:

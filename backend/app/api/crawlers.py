@@ -27,7 +27,7 @@ async def create_crawler(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/", response_model=List[CrawlerResponse])
+@router.get("/")
 async def get_crawlers(
     skip: int = 0,
     limit: int = 100,

@@ -32,6 +32,11 @@ export interface TaskLogs {
   limit: number
 }
 
+export interface PaginatedTasks {
+  total: number
+  items: TaskExecution[]
+}
+
 export const tasksApi = {
   list: (params?: {
     skip?: number;
@@ -42,7 +47,7 @@ export const tasksApi = {
     date_from?: string;
     date_to?: string
   }) =>
-    api.get<TaskExecution[]>('/tasks/', { params }),
+    api.get<PaginatedTasks>('/tasks/', { params }),
 
   get: (id: number) =>
     api.get<TaskExecution>(`/tasks/${id}`),

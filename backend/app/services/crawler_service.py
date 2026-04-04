@@ -1,6 +1,6 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import selectinload
 from ..models import Crawler
 from ..schemas.crawler import CrawlerCreate, CrawlerUpdate
@@ -10,15 +10,25 @@ class CrawlerService:
     """Service for managing crawler operations"""
 
     @staticmethod
-    async def get_all(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[Crawler]:
+    async def get_all(db: AsyncSession, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
         """Get all crawlers"""
+        # Get total count
+        count_result = await db.execute(select(func.count()).select_from(Crawler))
+        total = count_result.scalar() or 0
+
+        # Get paginated results
         result = await db.execute(
             select(Crawler)
             .offset(skip)
             .limit(limit)
             .order_by(Crawler.created_at.desc())
         )
-        return list(result.scalars().all())
+        items = list(result.scalars().all())
+
+        return {
+            "total": total,
+            "items": items
+        }
 
     @staticmethod
     async def get_by_id(db: AsyncSession, crawler_id: int) -> Optional[Crawler]:

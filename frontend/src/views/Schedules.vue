@@ -42,34 +42,35 @@
       </el-button>
     </div>
 
-    <el-table :data="store.schedules" v-loading="store.loading" stripe>
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column label="爬虫" width="150">
-        <template #default="{ row }">
-          {{ row.crawler?.name || `#${row.crawler_id}` }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="cron_expression" label="Cron表达式" width="150">
-        <template #default="{ row }">
-          <el-text class="cron-text">{{ row.cron_expression }}</el-text>
-        </template>
-      </el-table-column>
-      <el-table-column prop="next_run_time" label="下次运行时间" width="180">
-        <template #default="{ row }">
-          {{ row.next_run_time ? formatDate(row.next_run_time) : '-' }}
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" width="100">
-        <template #default="{ row }">
-          <el-switch v-model="row.is_active" @change="toggleSchedule(row)" />
-        </template>
-      </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" width="180">
-        <template #default="{ row }">
-          {{ formatDate(row.created_at) }}
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="150" fixed="right">
+    <div class="table-container">
+      <el-table :data="schedules" v-loading="store.loading" stripe>
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column label="爬虫" width="150">
+          <template #default="{ row }">
+            {{ row.crawler?.name || `#${row.crawler_id}` }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="cron_expression" label="Cron表达式" width="150">
+          <template #default="{ row }">
+            <el-text class="cron-text">{{ row.cron_expression }}</el-text>
+          </template>
+        </el-table-column>
+        <el-table-column prop="next_run_time" label="下次运行时间" width="180">
+          <template #default="{ row }">
+            {{ row.next_run_time ? formatDate(row.next_run_time) : '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-switch v-model="row.is_active" @change="toggleSchedule(row)" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="创建时间" width="180">
+          <template #default="{ row }">
+            {{ formatDate(row.created_at) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="150">
         <template #default="{ row }">
           <el-button
             type="primary"
@@ -90,6 +91,18 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
+
+    <el-pagination
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :page-sizes="[10, 20, 50, 100]"
+      :total="total"
+      layout="total, sizes, prev, pager, next, jumper"
+      @size-change="handleSizeChange"
+      @current-change="handleCurrentChange"
+      background
+    />
 
     <!-- Create/Edit Dialog -->
     <el-dialog
@@ -166,6 +179,10 @@ const isEdit = ref(false)
 const submitting = ref(false)
 const formRef = ref()
 const nextRunPreview = ref<string | null>(null)
+const schedules = ref<Schedule[]>([])
+const currentPage = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
 
 const form = reactive<ScheduleCreate & { id?: number }>({
   name: '',
@@ -267,6 +284,7 @@ const handleSubmit = async () => {
   try {
     if (isEdit.value) {
       await store.updateSchedule(form.id!, form as ScheduleUpdate, getFilterParams())
+      await fetchSchedules()
       ElMessage.success('更新成功')
     } else {
       // Auto-fill name with crawler name when creating
@@ -276,6 +294,7 @@ const handleSubmit = async () => {
         submitData.name = crawler.name
       }
       await store.createSchedule(submitData, getFilterParams())
+      await fetchSchedules()
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
@@ -289,6 +308,7 @@ const handleSubmit = async () => {
 const toggleSchedule = async (schedule: Schedule) => {
   try {
     await store.toggleSchedule(schedule.id, getFilterParams())
+    await fetchSchedules()
     ElMessage.success(schedule.is_active ? '已禁用' : '已启用')
   } catch (error) {
     console.error('Failed to toggle:', error)
@@ -298,6 +318,7 @@ const toggleSchedule = async (schedule: Schedule) => {
 const deleteSchedule = async (id: number) => {
   try {
     await store.deleteSchedule(id, getFilterParams())
+    await fetchSchedules()
     ElMessage.success('删除成功')
   } catch (error) {
     console.error('Failed to delete:', error)
@@ -307,7 +328,9 @@ const deleteSchedule = async (id: number) => {
 // Filter handlers
 const getFilterParams = () => {
   const params: any = {
-    search: filters.search || undefined
+    search: filters.search || undefined,
+    skip: (currentPage.value - 1) * pageSize.value,
+    limit: pageSize.value
   }
 
   if (dateRange.value && dateRange.value.length === 2) {
@@ -318,18 +341,37 @@ const getFilterParams = () => {
   return params
 }
 
+const fetchSchedules = async () => {
+  const response = await schedulesApi.list(getFilterParams())
+  schedules.value = response.items
+  total.value = response.total
+}
+
 const handleFilterChange = async () => {
-  await store.fetchSchedules(getFilterParams())
+  currentPage.value = 1
+  await fetchSchedules()
 }
 
 const resetFilters = async () => {
   filters.search = ''
   dateRange.value = null
-  await store.fetchSchedules()
+  currentPage.value = 1
+  await fetchSchedules()
+}
+
+const handleSizeChange = (newSize: number) => {
+  pageSize.value = newSize
+  currentPage.value = 1
+  fetchSchedules()
+}
+
+const handleCurrentChange = (newPage: number) => {
+  currentPage.value = newPage
+  fetchSchedules()
 }
 
 onMounted(async () => {
-  await Promise.all([store.fetchCrawlers(), store.fetchSchedules()])
+  await Promise.all([store.fetchCrawlers(), fetchSchedules()])
 })
 </script>
 
@@ -363,7 +405,22 @@ onMounted(async () => {
 
 :deep(.el-table) {
   flex: 1;
-  overflow: auto;
+}
+
+.table-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+:deep(.el-table__body-wrapper) {
+  overflow-y: auto;
+  max-height: calc(100vh - 400px);
+}
+
+.el-pagination {
+  padding: 16px 0 0 0;
+  flex-shrink: 0;
 }
 
 .cron-text {
