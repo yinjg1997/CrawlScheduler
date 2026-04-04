@@ -1,0 +1,91 @@
+from typing import List, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+from sqlalchemy.orm import selectinload
+from ..models import Crawler
+from ..schemas.crawler import CrawlerCreate, CrawlerUpdate
+
+
+class CrawlerService:
+    """Service for managing crawler operations"""
+
+    @staticmethod
+    async def get_all(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[Crawler]:
+        """Get all crawlers"""
+        result = await db.execute(
+            select(Crawler)
+            .offset(skip)
+            .limit(limit)
+            .order_by(Crawler.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def get_by_id(db: AsyncSession, crawler_id: int) -> Optional[Crawler]:
+        """Get a crawler by ID"""
+        result = await db.execute(
+            select(Crawler)
+            .options(selectinload(Crawler.schedules))
+            .where(Crawler.id == crawler_id)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_by_name(db: AsyncSession, name: str) -> Optional[Crawler]:
+        """Get a crawler by name"""
+        result = await db.execute(
+            select(Crawler).where(Crawler.name == name)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def create(db: AsyncSession, crawler: CrawlerCreate) -> Crawler:
+        """Create a new crawler"""
+        # Check if crawler with same name exists
+        existing = await CrawlerService.get_by_name(db, crawler.name)
+        if existing:
+            raise ValueError(f"Crawler with name '{crawler.name}' already exists")
+
+        db_crawler = Crawler(**crawler.model_dump())
+        db.add(db_crawler)
+        await db.commit()
+        await db.refresh(db_crawler)
+        return db_crawler
+
+    @staticmethod
+    async def update(
+        db: AsyncSession,
+        crawler_id: int,
+        crawler_update: CrawlerUpdate
+    ) -> Optional[Crawler]:
+        """Update a crawler"""
+        db_crawler = await CrawlerService.get_by_id(db, crawler_id)
+        if not db_crawler:
+            return None
+
+        # Check if new name conflicts with existing crawler
+        if crawler_update.name and crawler_update.name != db_crawler.name:
+            existing = await CrawlerService.get_by_name(db, crawler_update.name)
+            if existing:
+                raise ValueError(f"Crawler with name '{crawler_update.name}' already exists")
+
+        update_data = crawler_update.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(db_crawler, field, value)
+
+        await db.commit()
+        await db.refresh(db_crawler)
+        return db_crawler
+
+    @staticmethod
+    async def delete(db: AsyncSession, crawler_id: int) -> bool:
+        """Delete a crawler"""
+        db_crawler = await CrawlerService.get_by_id(db, crawler_id)
+        if not db_crawler:
+            return False
+
+        await db.execute(
+            delete(Crawler).where(Crawler.id == crawler_id)
+        )
+        await db.commit()
+        return True

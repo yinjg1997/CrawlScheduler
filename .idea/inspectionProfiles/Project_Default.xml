@@ -1,0 +1,43 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="browser-use" />
+          <option value="langchain-openai" />
+          <option value="playwright" />
+          <option value="playwright-stealth" />
+          <option value="DrissionPage" />
+          <option value="orjson" />
+          <option value="pycryptodomex" />
+          <option value="motor" />
+          <option value="pymongo" />
+          <option value="PyMySQL" />
+          <option value="redis" />
+          <option value="websockets" />
+          <option value="python-socks" />
+          <option value="requests" />
+          <option value="aiohttp" />
+          <option value="retrying" />
+          <option value="xxhash" />
+          <option value="inflection" />
+          <option value="python-dateutil" />
+          <option value="oss2" />
+          <option value="shortuuid" />
+          <option value="pandas" />
+          <option value="environs" />
+          <option value="loguru" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="types.NoneType.to_dict" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

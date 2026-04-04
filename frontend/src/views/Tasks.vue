@@ -1,0 +1,411 @@
+<template>
+  <div class="tasks-view">
+    <div class="page-header">
+      <h2>任务列表</h2>
+      <el-button @click="refreshTasks">
+        <el-icon><Refresh /></el-icon>
+        刷新
+      </el-button>
+    </div>
+
+    <div class="filter-bar">
+      <el-input
+        v-model="searchKeyword"
+        placeholder="搜索爬虫名称"
+        style="width: 200px"
+        clearable
+        @input="handleSearchDebounced"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+
+      <el-select
+        v-model="selectedCrawlerId"
+        placeholder="按爬虫筛选"
+        style="width: 200px"
+        clearable
+        @change="handleCrawlerFilter"
+      >
+        <el-option
+          v-for="crawler in crawlers"
+          :key="crawler.id"
+          :label="crawler.name"
+          :value="crawler.id"
+        />
+      </el-select>
+
+      <el-date-picker
+        v-model="dateRange"
+        type="daterange"
+        range-separator="至"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        format="YYYY-MM-DD"
+        value-format="YYYY-MM-DD"
+        style="width: 240px"
+        @change="handleDateRangeChange"
+      />
+
+      <el-button @click="resetFilters">重置</el-button>
+    </div>
+
+    <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+      <el-tab-pane label="全部" name="all" />
+      <el-tab-pane label="运行中" name="running" />
+      <el-tab-pane label="成功" name="success" />
+      <el-tab-pane label="失败" name="failed" />
+    </el-tabs>
+
+    <div class="toolbar">
+      <el-button
+        type="danger"
+        :disabled="selectedTasks.length === 0"
+        @click="handleBulkDelete"
+      >
+        <el-icon><Delete /></el-icon>
+        批量删除 ({{ selectedTasks.length }})
+      </el-button>
+    </div>
+
+    <el-table
+      :data="filteredTasks"
+      v-loading="loading"
+      stripe
+      @selection-change="handleSelectionChange"
+    >
+      <el-table-column type="selection" width="55" />
+      <el-table-column prop="id" label="ID" width="80" />
+      <el-table-column label="爬虫" width="150">
+        <template #default="{ row }">
+          <span v-if="row.crawler">{{ row.crawler.name }}</span>
+          <span v-else class="text-gray-400">#{{ row.crawler_id }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="状态" width="100">
+        <template #default="{ row }">
+          <el-tag :type="getStatusType(row.status)">
+            {{ getStatusLabel(row.status) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="触发方式" width="100">
+        <template #default="{ row }">
+          <el-tag :type="row.triggered_by === 'manual' ? '' : 'warning'" size="small">
+            {{ row.triggered_by === 'manual' ? '手动' : '定时' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="duration" label="耗时(秒)" width="100">
+        <template #default="{ row }">
+          {{ row.duration || '-' }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="exit_code" label="退出码" width="80">
+        <template #default="{ row }">
+          <span v-if="row.exit_code !== null">{{ row.exit_code }}</span>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="created_at" label="创建时间" width="180">
+        <template #default="{ row }">
+          {{ formatDate(row.created_at) }}
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="200" fixed="right">
+        <template #default="{ row }">
+          <el-button
+            type="primary"
+            size="small"
+            text
+            @click="viewTask(row)"
+          >
+            详情
+          </el-button>
+          <el-button
+            v-if="row.status === 'pending' || row.status === 'running'"
+            type="danger"
+            size="small"
+            text
+            @click="cancelTask(row)"
+          >
+            取消
+          </el-button>
+          <el-popconfirm
+            v-if="row.status !== 'running'"
+            title="确定要删除这条任务记录吗？"
+            @confirm="deleteTask(row)"
+          >
+            <template #reference>
+              <el-button
+                type="danger"
+                size="small"
+                text
+              >
+                删除
+              </el-button>
+            </template>
+          </el-popconfirm>
+        </template>
+      </el-table-column>
+    </el-table>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useAppStore } from '@/store'
+import { tasksApi, type TaskExecution } from '@/api/tasks'
+import { Refresh, Search, Delete } from '@element-plus/icons-vue'
+
+const router = useRouter()
+const store = useAppStore()
+
+const activeTab = ref('all')
+const loading = ref(false)
+const selectedCrawlerId = ref<number | undefined>(undefined)
+const searchKeyword = ref('')
+const dateRange = ref<[string, string] | null>(null)
+const crawlers = ref<{ id: number; name: string }[]>([])
+const selectedTasks = ref<TaskExecution[]>([])
+
+// Debounced search handler
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+const handleSearchDebounced = () => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+  searchDebounceTimer = setTimeout(() => {
+    handleSearch()
+  }, 500) // 500ms debounce
+}
+
+const handleSearch = () => {
+  // Trigger refetch with search parameter
+  fetchTasks()
+}
+
+const handleDateRangeChange = () => {
+  // Trigger refetch with date range
+  fetchTasks()
+}
+
+const handleCrawlerFilter = () => {
+  // Trigger refetch with crawler filter
+  fetchTasks()
+}
+
+const handleTabChange = () => {
+  // Tab change triggers refetch
+  fetchTasks()
+}
+
+const resetFilters = () => {
+  searchKeyword.value = ''
+  dateRange.value = null
+  selectedCrawlerId.value = undefined
+  activeTab.value = 'all'
+  fetchTasks()
+}
+
+const filteredTasks = computed(() => {
+  let tasks = store.tasks
+
+  // Filter by status (frontend filter for tabs)
+  if (activeTab.value !== 'all') {
+    tasks = tasks.filter(task => task.status === activeTab.value)
+  }
+
+  return tasks
+})
+
+const formatDate = (dateStr: string) => {
+  return new Date(dateStr).toLocaleString('zh-CN')
+}
+
+const getStatusType = (status: string) => {
+  const types: Record<string, any> = {
+    pending: 'info',
+    running: 'warning',
+    success: 'success',
+    failed: 'danger',
+    cancelled: 'info'
+  }
+  return types[status] || ''
+}
+
+const getStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    pending: '等待中',
+    running: '运行中',
+    success: '成功',
+    failed: '失败',
+    cancelled: '已取消'
+  }
+  return labels[status] || status
+}
+
+const refreshTasks = async () => {
+  loading.value = true
+  try {
+    await fetchTasks()
+    ElMessage.success('刷新成功')
+  } catch (error) {
+    console.error('Failed to refresh:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+const fetchTasks = async () => {
+  const params: {
+    crawler_id?: number
+    status_filter?: string
+    search?: string
+    date_from?: string
+    date_to?: string
+  } = {}
+
+  if (selectedCrawlerId.value !== undefined) {
+    params.crawler_id = selectedCrawlerId.value
+  }
+
+  if (activeTab.value !== 'all') {
+    params.status_filter = activeTab.value
+  }
+
+  if (searchKeyword.value.trim()) {
+    params.search = searchKeyword.value.trim()
+  }
+
+  if (dateRange.value && dateRange.value.length === 2) {
+    params.date_from = dateRange.value[0]
+    params.date_to = dateRange.value[1]
+  }
+
+  const tasks = await tasksApi.list(params)
+  store.tasks = tasks  // Update store with fetched tasks
+  await store.fetchCrawlers()
+  // Update crawlers list from store
+  crawlers.value = store.crawlers.map(c => ({ id: c.id, name: c.name }))
+}
+
+const viewTask = (task: TaskExecution) => {
+  router.push(`/tasks/${task.id}`)
+}
+
+const cancelTask = async (task: TaskExecution) => {
+  try {
+    await store.cancelTask(task.id)
+    await fetchTasks()
+    ElMessage.success('任务已取消')
+  } catch (error) {
+    console.error('Failed to cancel:', error)
+  }
+}
+
+const handleSelectionChange = (selection: TaskExecution[]) => {
+  selectedTasks.value = selection
+}
+
+const deleteTask = async (task: TaskExecution) => {
+  try {
+    await tasksApi.delete(task.id)
+    await fetchTasks()
+    ElMessage.success('删除成功')
+  } catch (error) {
+    console.error('Failed to delete:', error)
+    ElMessage.error('删除失败')
+  }
+}
+
+const handleBulkDelete = async () => {
+  try {
+    const taskIds = selectedTasks.value
+      .filter(task => task.status !== 'running')
+      .map(task => task.id)
+
+    if (taskIds.length === 0) {
+      ElMessage.warning('请选择要删除的任务（运行中的任务无法删除）')
+      return
+    }
+
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${taskIds.length} 条任务记录吗？`,
+      '批量删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    const result = await tasksApi.bulkDelete(taskIds)
+    await fetchTasks()
+    selectedTasks.value = []
+
+    if (result.skipped_count > 0) {
+      ElMessage.warning(
+        `成功删除 ${result.deleted_count} 条，跳过 ${result.skipped_count} 条（运行中或不存在）`
+      )
+    } else {
+      ElMessage.success(`成功删除 ${result.deleted_count} 条任务记录`)
+    }
+  } catch (error) {
+    console.error('Failed to bulk delete:', error)
+  }
+}
+
+onMounted(async () => {
+  await fetchTasks()
+})
+</script>
+
+<style scoped>
+.tasks-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.page-header h2 {
+  margin: 0;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+:deep(.el-tabs) {
+  margin-bottom: 20px;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+:deep(.el-table) {
+  flex: 1;
+  overflow: auto;
+}
+
+.text-gray-400 {
+  color: #909399;
+}
+</style>
