@@ -154,6 +154,9 @@ html, body {
   padding: 15px;
   border-bottom: 1px solid #3a4b5c;
   width: 100%;
+  text-align: center;
+  display: flex;
+  justify-content: center;
 }
 
 .app-title {
@@ -161,12 +164,13 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin: 0;
+  margin: 0 auto;
   padding: 0;
   font-size: 18px;
   font-weight: 500;
   color: #fff;
-  width: 100%;
+  width: fit-content;
+  min-width: 100%;
 }
 
 .app-header {
