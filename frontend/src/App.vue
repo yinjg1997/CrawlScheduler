@@ -47,10 +47,15 @@
         <el-container>
           <el-header class="app-header">
             <div class="header-right">
-              <span class="user-info">
-                <el-icon><User /></el-icon>
-                {{ authStore.user?.username }}
-              </span>
+              <div class="user-info" @click="handleUserClick">
+                <div class="user-avatar">
+                  <el-icon><User /></el-icon>
+                </div>
+                <div class="user-details">
+                  <span class="user-name">{{ authStore.user?.username }}</span>
+                  <span class="user-role">{{ authStore.user?.is_superuser ? '管理员' : '普通用户' }}</span>
+                </div>
+              </div>
               <el-button type="danger" size="small" @click="handleLogout">
                 退出
               </el-button>
@@ -68,7 +73,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox, ElMessage } from 'element-plus'
 import { useAuthStore } from '@/store/auth'
 
 const route = useRoute()
@@ -76,6 +81,12 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const activeMenu = computed(() => route.path)
+
+// Handle user info click
+const handleUserClick = () => {
+  // 可以添加用户信息下拉菜单或跳转到用户详情页
+  ElMessage.info('用户信息功能开发中')
+}
 
 // Handle logout
 const handleLogout = async () => {
@@ -188,15 +199,55 @@ html, body {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 20px;
 }
 
 .user-info {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background-color: transparent;
+}
+
+.user-info:hover {
+  background-color: #f5f7fa;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 80px;
+}
+
+.user-name {
   font-size: 14px;
-  color: #606266;
+  font-weight: 500;
+  color: #303133;
+  line-height: 1.2;
+}
+
+.user-role {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.2;
 }
 
 .app-main {
