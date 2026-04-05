@@ -88,7 +88,6 @@ crawlscheduler/
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 alembic upgrade head
 uvicorn app.main:app --reload
@@ -176,7 +175,6 @@ SECRET_KEY=your-secret-key-change-this-in-production
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 
 # 路径配置
-CRAWLERS_DIR=./data/crawlers
 LOGS_DIR=./data/logs
 
 # 调度器配置

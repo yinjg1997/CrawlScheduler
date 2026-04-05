@@ -14,8 +14,9 @@ export interface Crawler {
   description?: string
   command: string
   working_directory: string
-  file_path?: string
   python_executable?: string
+  project_id?: number
+  project_name?: string
   created_at: string
   updated_at: string
 }
@@ -25,8 +26,8 @@ export interface CrawlerCreate {
   description?: string
   command: string
   working_directory: string
-  file_path?: string
   python_executable?: string
+  project_id?: number
 }
 
 export interface CrawlerUpdate {
@@ -34,8 +35,8 @@ export interface CrawlerUpdate {
   description?: string
   command?: string
   working_directory?: string
-  file_path?: string
   python_executable?: string
+  project_id?: number
 }
 
 export interface PaginatedCrawlers {

@@ -10,9 +10,9 @@ class CrawlerBase(BaseModel):
     description: Optional[str] = Field(None, max_length=1000, description="Crawler description")
     command: str = Field(..., min_length=1, max_length=500, description="Execution command")
     working_directory: str = Field(..., min_length=1, max_length=500, description="Working directory")
-    file_path: Optional[str] = Field(None, max_length=500, description="File path")
     python_executable: Optional[str] = Field(None, max_length=500, description="Python interpreter path (e.g., conda environment)")
     is_active: bool = Field(True, description="Whether the crawler is active")
+    project_id: Optional[int] = Field(None, description="Project ID")
 
 
 class CrawlerCreate(CrawlerBase):
@@ -24,15 +24,16 @@ class CrawlerUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=1000)
     command: Optional[str] = Field(None, min_length=1, max_length=500)
     working_directory: Optional[str] = Field(None, min_length=1, max_length=500)
-    file_path: Optional[str] = Field(None, max_length=500)
     python_executable: Optional[str] = Field(None, max_length=500)
     is_active: Optional[bool] = None
+    project_id: Optional[int] = None
 
 
 class CrawlerResponse(CrawlerBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    project_name: Optional[str] = None
 
     @field_serializer('created_at', 'updated_at', when_used='json')
     def serialize_datetime(self, dt: datetime) -> str:

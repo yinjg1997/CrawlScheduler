@@ -15,7 +15,6 @@ class Settings(BaseSettings):
     TIMEZONE: str = "Asia/Shanghai"
 
     # Paths
-    CRAWLERS_DIR: Path = Path("./data/crawlers")
     LOGS_DIR: Path = Path("./data/logs")
 
     # Scheduler
@@ -35,5 +34,4 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # Create directories if they don't exist
-settings.CRAWLERS_DIR.mkdir(parents=True, exist_ok=True)
 settings.LOGS_DIR.mkdir(parents=True, exist_ok=True)

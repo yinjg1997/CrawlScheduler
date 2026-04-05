@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from pathlib import Path
 from typing import List
 import os
 
@@ -10,7 +9,6 @@ from ..schemas.crawler import CrawlerCreate, CrawlerUpdate, CrawlerResponse
 from ..services.crawler_service import CrawlerService
 from ..services.task_service import TaskService
 from ..services.executor import TaskExecutor
-from ..config import settings
 from ..auth import get_current_active_user
 
 router = APIRouter(prefix="/api/v1/crawlers", tags=["crawlers"])
@@ -97,36 +95,6 @@ async def execute_crawler(
         return {"task_id": task.id, "message": "Task execution started"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/{crawler_id}/upload", status_code=status.HTTP_200_OK, dependencies=[Depends(get_current_active_user)])
-async def upload_crawler_file(
-    crawler_id: int,
-    file_path: str,
-    db: AsyncSession = Depends(get_db)
-):
-    """Upload a crawler file (for demonstration - in production use multipart form data)"""
-    crawler = await CrawlerService.get_by_id(db, crawler_id)
-    if not crawler:
-        raise HTTPException(status_code=404, detail="Crawler not found")
-
-    source = Path(file_path)
-    if not source.exists():
-        raise HTTPException(status_code=404, detail="Source file not found")
-
-    # Copy file to crawlers directory
-    dest = settings.CRAWLERS_DIR / source.name
-    import shutil
-    shutil.copy(source, dest)
-
-    # Update crawler file path
-    crawler = await CrawlerService.update(
-        db,
-        crawler_id,
-        CrawlerUpdate(file_path=str(dest))
-    )
-
-    return {"message": "File uploaded successfully", "file_path": str(dest)}
 
 
 # Cache for Python environments

@@ -20,6 +20,12 @@ const routes: Array<RouteRecordRaw> = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/projects',
+    name: 'Projects',
+    component: () => import('@/views/Projects.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/crawlers/:id',
     name: 'CrawlerDetail',
     component: () => import('@/views/CrawlerDetail.vue'),

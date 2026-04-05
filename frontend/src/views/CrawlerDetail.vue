@@ -21,9 +21,6 @@
       <el-descriptions-item label="工作目录" :span="2">
         <el-text>{{ crawler.working_directory }}</el-text>
       </el-descriptions-item>
-      <el-descriptions-item label="文件路径" :span="2">
-        <el-text>{{ crawler.file_path || '-' }}</el-text>
-      </el-descriptions-item>
       <el-descriptions-item label="描述" :span="2">
         <el-text>{{ crawler.description || '-' }}</el-text>
       </el-descriptions-item>

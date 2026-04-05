@@ -31,6 +31,10 @@
               <el-icon><Monitor /></el-icon>
               <span>爬虫管理</span>
             </el-menu-item>
+            <el-menu-item index="/projects">
+              <el-icon><Folder /></el-icon>
+              <span>项目管理</span>
+            </el-menu-item>
             <el-menu-item index="/schedules">
               <el-icon><Timer /></el-icon>
               <span>定时任务</span>

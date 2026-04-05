@@ -1,24 +1,29 @@
 <template>
-  <div class="crawlers-view">
+  <div class="projects-view">
     <div class="page-header">
-      <h2>爬虫管理</h2>
+      <h2>项目管理</h2>
       <el-button type="primary" @click="showCreateDialog">
         <el-icon><Plus /></el-icon>
-        添加爬虫
+        添加项目
       </el-button>
     </div>
 
     <div class="table-container">
-      <el-table :data="crawlers" v-loading="store.loading" stripe>
+      <el-table :data="projects" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="名称" />
+        <el-table-column prop="name" label="项目名称" />
         <el-table-column prop="description" label="描述" show-overflow-tooltip />
-        <el-table-column prop="command" label="命令" show-overflow-tooltip />
-        <el-table-column prop="project_name" label="项目" width="120" />
-        <el-table-column label="Python环境" width="150" show-overflow-tooltip>
+        <el-table-column prop="working_directory" label="工作目录" show-overflow-tooltip />
+        <el-table-column label="爬虫数量" width="100">
           <template #default="{ row }">
-            <span v-if="row.python_executable">{{ row.python_executable }}</span>
-            <span v-else class="text-gray-400">默认</span>
+            {{ row.crawler_count }}
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.is_active ? 'success' : 'info'">
+              {{ row.is_active ? '启用' : '禁用' }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180">
@@ -27,33 +32,26 @@
           </template>
         </el-table-column>
         <el-table-column label="操作" width="220">
-        <template #default="{ row }">
-          <el-button
-            type="primary"
-            size="small"
-            @click="executeCrawler(row)"
-          >
-            执行
-          </el-button>
-          <el-button
-            type="primary"
-            size="small"
-            text
-            @click="showEditDialog(row)"
-          >
-            编辑
-          </el-button>
-          <el-popconfirm
-            title="确定要删除这个爬虫吗？"
-            @confirm="deleteCrawler(row.id)"
-          >
-            <template #reference>
-              <el-button type="danger" size="small" text>删除</el-button>
-            </template>
-          </el-popconfirm>
-        </template>
-      </el-table-column>
-    </el-table>
+          <template #default="{ row }">
+            <el-button
+              type="primary"
+              size="small"
+              text
+              @click="showEditDialog(row)"
+            >
+              编辑
+            </el-button>
+            <el-popconfirm
+              :title="'确定要删除项目「' + row.name + '」吗？删除项目将同时删除其下所有爬虫。'"
+              @confirm="deleteProject(row.id)"
+            >
+              <template #reference>
+                <el-button type="danger" size="small" text>删除</el-button>
+              </template>
+            </el-popconfirm>
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
 
     <el-pagination
@@ -70,7 +68,7 @@
     <!-- Create/Edit Dialog -->
     <el-dialog
       v-model="dialogVisible"
-      :title="isEdit ? '编辑爬虫' : '添加爬虫'"
+      :title="isEdit ? '编辑项目' : '添加项目'"
       width="600px"
     >
       <el-form
@@ -79,52 +77,30 @@
         :rules="rules"
         label-width="120px"
       >
-        <el-form-item label="名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入爬虫名称" />
+        <el-form-item label="项目名称" prop="name">
+          <el-input v-model="form.name" placeholder="请输入项目名称" />
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input
             v-model="form.description"
             type="textarea"
             :rows="3"
-            placeholder="请输入爬虫描述"
+            placeholder="请输入项目描述"
           />
         </el-form-item>
-        <el-form-item label="所属项目" prop="project_id">
-          <el-select
-            v-model="form.project_id"
-            placeholder="选择项目（可选）"
-            style="width: 100%"
-            clearable
-            @change="handleProjectChange"
-          >
-            <el-option
-              v-for="project in projects"
-              :key="project.id"
-              :label="project.name"
-              :value="project.id"
-            />
-          </el-select>
-          <el-text class="hint" size="small" type="info">
-            选择项目将自动填充默认配置
-          </el-text>
-        </el-form-item>
-        <el-form-item label="执行命令" prop="command">
-          <el-input
-            v-model="form.command"
-            placeholder="例如: python main.py"
-          />
-        </el-form-item>
-        <el-form-item label="工作目录" prop="working_directory">
+        <el-form-item label="默认工作目录" prop="working_directory">
           <el-input
             v-model="form.working_directory"
-            placeholder="例如: ./data/crawlers/my_spider"
+            placeholder="例如: ./data/projects/my_project"
           />
+          <el-text class="hint" size="small" type="info">
+            创建爬虫时将自动使用此目录
+          </el-text>
         </el-form-item>
-        <el-form-item label="Python环境" prop="python_executable">
+        <el-form-item label="默认Python环境" prop="python_executable">
           <el-select
             v-model="form.python_executable"
-            placeholder="选择Python环境（默认使用系统Python）"
+            placeholder="选择Python环境（可选）"
             style="width: 100%"
             filterable
             clearable
@@ -143,8 +119,11 @@
             </el-option>
           </el-select>
           <el-text class="hint" size="small" type="info">
-            选择conda环境或自定义Python解释器路径
+            创建爬虫时将自动使用此Python环境
           </el-text>
+        </el-form-item>
+        <el-form-item label="状态" prop="is_active">
+          <el-switch v-model="form.is_active" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -159,70 +138,37 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { useAppStore } from '@/store'
-import { crawlersApi, type Crawler, type CrawlerCreate, type CrawlerUpdate } from '@/api/crawlers'
-import { projectsApi, type Project } from '@/api/projects'
+import { projectsApi, type Project, type ProjectCreate, type ProjectUpdate } from '@/api/projects'
 import { pythonEnvironmentsApi, type PythonEnvironmentListItem } from '@/api/python_environments'
 import { Plus } from '@element-plus/icons-vue'
 
-const router = useRouter()
-const store = useAppStore()
-
+const loading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
 const formRef = ref()
 const pythonEnvironments = ref<PythonEnvironmentListItem[]>([])
 const projects = ref<Project[]>([])
-const crawlers = ref<Crawler[]>([])
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 
-const form = reactive<CrawlerCreate & { id?: number }>({
+const form = reactive<ProjectCreate & { id?: number }>({
   name: '',
   description: '',
-  command: '',
   working_directory: '',
   python_executable: '',
-  project_id: undefined
+  is_active: true
 })
 
 const rules = {
-  name: [{ required: true, message: '请输入爬虫名称', trigger: 'blur' }],
-  command: [{ required: true, message: '请输入执行命令', trigger: 'blur' }],
-  working_directory: [{ required: true, message: '请输入工作目录', trigger: 'blur' }]
+  name: [{ required: true, message: '请输入项目名称', trigger: 'blur' }],
+  working_directory: [{ required: true, message: '请输入默认工作目录', trigger: 'blur' }]
 }
 
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleString('zh-CN')
-}
-
-const fetchProjects = async () => {
-  try {
-    const response = await projectsApi.list({ limit: 100 })
-    projects.value = response.items
-  } catch (error) {
-    console.error('Failed to fetch projects:', error)
-  }
-}
-
-const handleProjectChange = (projectId: number | undefined) => {
-  if (projectId) {
-    const project = projects.value.find(p => p.id === projectId)
-    if (project) {
-      // Auto-fill project defaults if fields are empty
-      if (!form.working_directory) {
-        form.working_directory = project.working_directory
-      }
-      if (!form.python_executable && project.python_executable) {
-        form.python_executable = project.python_executable
-      }
-      ElMessage.success(`已应用项目"${project.name}"的默认配置`)
-    }
-  }
 }
 
 const fetchPythonEnvironments = async () => {
@@ -239,22 +185,19 @@ const showCreateDialog = async () => {
   Object.assign(form, {
     name: '',
     description: '',
-    command: '',
     working_directory: '',
     python_executable: '',
-    project_id: undefined
+    is_active: true
   })
 
-  await fetchProjects()
   await fetchPythonEnvironments()
   dialogVisible.value = true
 }
 
-const showEditDialog = async (crawler: Crawler) => {
+const showEditDialog = async (project: Project) => {
   isEdit.value = true
-  Object.assign(form, crawler)
+  Object.assign(form, project)
 
-  await fetchProjects()
   await fetchPythonEnvironments()
   dialogVisible.value = true
 }
@@ -265,15 +208,21 @@ const handleSubmit = async () => {
 
   try {
     if (isEdit.value) {
-      await store.updateCrawler(form.id!, form as CrawlerUpdate)
-      await fetchCrawlers()
+      const data: ProjectUpdate = {
+        name: form.name,
+        description: form.description,
+        working_directory: form.working_directory,
+        python_executable: form.python_executable,
+        is_active: form.is_active
+      }
+      await projectsApi.update(form.id!, data)
       ElMessage.success('更新成功')
     } else {
-      await store.createCrawler(form)
-      await fetchCrawlers()
+      await projectsApi.create(form)
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
+    await fetchProjects()
   } catch (error) {
     console.error('Failed to submit:', error)
   } finally {
@@ -281,53 +230,50 @@ const handleSubmit = async () => {
   }
 }
 
-const deleteCrawler = async (id: number) => {
+const deleteProject = async (id: number) => {
   try {
-    await store.deleteCrawler(id)
-    await fetchCrawlers()
+    await projectsApi.delete(id)
     ElMessage.success('删除成功')
+    await fetchProjects()
   } catch (error) {
     console.error('Failed to delete:', error)
   }
 }
 
-const executeCrawler = async (crawler: Crawler) => {
+const fetchProjects = async () => {
+  loading.value = true
   try {
-    const result = await store.executeCrawler(crawler.id)
-    ElMessage.success(`任务已创建: ID ${result.task_id}`)
-    router.push(`/tasks/${result.task_id}`)
+    const response = await projectsApi.list({
+      skip: (currentPage.value - 1) * pageSize.value,
+      limit: pageSize.value
+    })
+    projects.value = response.items
+    total.value = response.total
   } catch (error) {
-    console.error('Failed to execute:', error)
+    console.error('Failed to fetch projects:', error)
+  } finally {
+    loading.value = false
   }
-}
-
-const fetchCrawlers = async () => {
-  const response = await crawlersApi.list({
-    skip: (currentPage.value - 1) * pageSize.value,
-    limit: pageSize.value
-  })
-  crawlers.value = response.items
-  total.value = response.total
 }
 
 const handleSizeChange = (newSize: number) => {
   pageSize.value = newSize
   currentPage.value = 1
-  fetchCrawlers()
+  fetchProjects()
 }
 
 const handleCurrentChange = (newPage: number) => {
   currentPage.value = newPage
-  fetchCrawlers()
+  fetchProjects()
 }
 
 onMounted(() => {
-  fetchCrawlers()
+  fetchProjects()
 })
 </script>
 
 <style scoped>
-.crawlers-view {
+.projects-view {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -383,9 +329,5 @@ onMounted(() => {
 .hint {
   display: block;
   margin-top: 4px;
-}
-
-.text-gray-400 {
-  color: #909399;
 }
 </style>

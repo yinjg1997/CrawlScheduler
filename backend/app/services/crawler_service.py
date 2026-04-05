@@ -19,6 +19,7 @@ class CrawlerService:
         # Get paginated results
         result = await db.execute(
             select(Crawler)
+            .options(selectinload(Crawler.project))
             .offset(skip)
             .limit(limit)
             .order_by(Crawler.created_at.desc())
@@ -36,6 +37,7 @@ class CrawlerService:
         result = await db.execute(
             select(Crawler)
             .options(selectinload(Crawler.schedules))
+            .options(selectinload(Crawler.project))
             .where(Crawler.id == crawler_id)
         )
         return result.scalar_one_or_none()
