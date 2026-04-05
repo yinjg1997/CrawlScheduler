@@ -9,7 +9,7 @@
         <el-aside width="200px" class="app-aside">
           <div class="aside-header">
             <h1 class="app-title">
-              <el-icon><Spider /></el-icon>
+              <el-icon><Platform /></el-icon>
               CrawlScheduler
             </h1>
           </div>
