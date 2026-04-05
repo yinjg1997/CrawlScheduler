@@ -10,10 +10,10 @@ class Crawler(BaseModel, TimestampMixin):
     name = Column(String(200), unique=True, nullable=False, index=True)
     description = Column(String(1000), nullable=True)
     command = Column(String(500), nullable=False)
-    working_directory = Column(String(500), nullable=False)
-    python_executable = Column(String(500), nullable=True)  # Python interpreter path (conda environment)
     is_active = Column(Boolean, default=True, nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+
+    # Note: working_directory and python_executable are now obtained from the associated project
 
     # Relationships
     task_executions = relationship("TaskExecution", back_populates="crawler")

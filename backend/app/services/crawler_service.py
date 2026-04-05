@@ -109,7 +109,10 @@ class CrawlerService:
     @staticmethod
     async def delete(db: AsyncSession, crawler_id: int) -> bool:
         """Delete a crawler"""
-        db_crawler = await CrawlerService.get_by_id(db, crawler_id)
+        result = await db.execute(
+            select(Crawler).where(Crawler.id == crawler_id)
+        )
+        db_crawler = result.scalar_one_or_none()
         if not db_crawler:
             return False
 

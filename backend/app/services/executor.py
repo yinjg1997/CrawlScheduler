@@ -33,9 +33,60 @@ class TaskExecutor:
             if not task:
                 raise ValueError(f"Task with ID {task_id} not found")
 
-            crawler = await executor_db.get(Crawler, task.crawler_id)
+            # Get crawler with project relationship
+            from sqlalchemy import select
+            from sqlalchemy.orm import selectinload
+            result = await executor_db.execute(
+                select(Crawler)
+                .options(selectinload(Crawler.project))
+                .where(Crawler.id == task.crawler_id)
+            )
+            crawler = result.scalar_one_or_none()
             if not crawler:
                 raise ValueError(f"Crawler with ID {task.crawler_id} not found")
+
+            # Get working directory and python executable from project
+            working_directory = None
+            python_executable = None
+
+            if crawler.project:
+                working_directory = crawler.project.working_directory
+                python_executable = crawler.project.python_executable
+
+            if not working_directory:
+                raise ValueError(f"Crawler must be associated with a project that has a working directory")
+
+            # Create log file with fixed name for WebSocket streaming
+            log_file_path = settings.LOGS_DIR / f"task_{task_id}.log"
+            task.log_file_path = str(log_file_path)
+            await executor_db.commit()
+
+            # Update task status to running
+            task = await TaskService.update_status(executor_db, task_id, "running")
+            await TaskExecutor._broadcast_status_update(task_id, task.status)
+
+        try:
+            # Prepare working directory
+            work_dir = Path(working_directory)
+            work_dir.mkdir(parents=True, exist_ok=True)
+
+            # Build execution command with custom Python interpreter if specified
+            exec_command = crawler.command
+            if python_executable:
+                import re
+                # Check if command already starts with python
+                if re.match(r'^python3?\s+', crawler.command, re.IGNORECASE):
+                    # Replace python with custom interpreter
+                    exec_command = re.sub(
+                        r'^python3?\s+',
+                        f'{python_executable} ',
+                        crawler.command,
+                        count=1,
+                        flags=re.IGNORECASE
+                    )
+                else:
+                    # Wrap command with custom python interpreter
+                    exec_command = f'{python_executable} -m {crawler.command}'
 
             # Create log file with fixed name for WebSocket streaming
             log_file_path = settings.LOGS_DIR / f"task_{task_id}.log"

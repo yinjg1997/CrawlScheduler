@@ -20,12 +20,6 @@
             <span v-else class="text-gray-400">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="Python环境" width="150" show-overflow-tooltip>
-          <template #default="{ row }">
-            <span v-if="row.python_executable">{{ row.python_executable }}</span>
-            <span v-else class="text-gray-400">默认</span>
-          </template>
-        </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
@@ -98,10 +92,9 @@
         <el-form-item label="所属项目" prop="project_id">
           <el-select
             v-model="form.project_id"
-            placeholder="选择项目（可选）"
+            placeholder="请选择项目"
             style="width: 100%"
-            clearable
-            @change="handleProjectChange"
+            filterable
           >
             <el-option
               v-for="project in projects"
@@ -111,7 +104,7 @@
             />
           </el-select>
           <el-text class="hint" size="small" type="info">
-            选择项目将自动填充默认配置
+            爬虫将使用项目配置的工作目录和 Python 环境
           </el-text>
         </el-form-item>
         <el-form-item label="执行命令" prop="command">
@@ -119,36 +112,8 @@
             v-model="form.command"
             placeholder="例如: python main.py"
           />
-        </el-form-item>
-        <el-form-item label="工作目录" prop="working_directory">
-          <el-input
-            v-model="form.working_directory"
-            placeholder="例如: ./data/crawlers/my_spider"
-          />
-        </el-form-item>
-        <el-form-item label="Python环境" prop="python_executable">
-          <el-select
-            v-model="form.python_executable"
-            placeholder="选择Python环境（默认使用系统Python）"
-            style="width: 100%"
-            filterable
-            clearable
-          >
-            <el-option
-              v-for="env in pythonEnvironments"
-              :key="env.path"
-              :label="`${env.name} - ${env.version}`"
-              :value="env.path"
-            >
-              <div class="env-option">
-                <span>{{ env.name }}</span>
-                <span class="env-version">{{ env.version }}</span>
-                <el-tag v-if="env.is_active" type="success" size="small">当前</el-tag>
-              </div>
-            </el-option>
-          </el-select>
           <el-text class="hint" size="small" type="info">
-            选择conda环境或自定义Python解释器路径
+            Python 解释器和工作目录将使用项目配置
           </el-text>
         </el-form-item>
       </el-form>
@@ -169,7 +134,6 @@ import { ElMessage } from 'element-plus'
 import { useAppStore } from '@/store'
 import { crawlersApi, type Crawler, type CrawlerCreate, type CrawlerUpdate } from '@/api/crawlers'
 import { projectsApi, type Project } from '@/api/projects'
-import { pythonEnvironmentsApi, type PythonEnvironmentListItem } from '@/api/python_environments'
 import { Plus } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -179,7 +143,6 @@ const dialogVisible = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
 const formRef = ref()
-const pythonEnvironments = ref<PythonEnvironmentListItem[]>([])
 const projects = ref<Project[]>([])
 const crawlers = ref<Crawler[]>([])
 const currentPage = ref(1)
@@ -190,15 +153,13 @@ const form = reactive<CrawlerCreate & { id?: number }>({
   name: '',
   description: '',
   command: '',
-  working_directory: '',
-  python_executable: '',
   project_id: undefined
 })
 
 const rules = {
   name: [{ required: true, message: '请输入爬虫名称', trigger: 'blur' }],
   command: [{ required: true, message: '请输入执行命令', trigger: 'blur' }],
-  working_directory: [{ required: true, message: '请输入工作目录', trigger: 'blur' }]
+  project_id: [{ required: true, message: '请选择所属项目', trigger: 'change' }]
 }
 
 const formatDate = (dateStr: string) => {
@@ -214,53 +175,30 @@ const fetchProjects = async () => {
   }
 }
 
-const handleProjectChange = (projectId: number | undefined) => {
-  if (projectId) {
-    const project = projects.value.find(p => p.id === projectId)
-    if (project) {
-      // Auto-fill project defaults if fields are empty
-      if (!form.working_directory) {
-        form.working_directory = project.working_directory
-      }
-      if (!form.python_executable && project.python_executable) {
-        form.python_executable = project.python_executable
-      }
-      ElMessage.success(`已应用项目"${project.name}"的默认配置`)
-    }
-  }
-}
-
-const fetchPythonEnvironments = async () => {
-  try {
-    const response = await pythonEnvironmentsApi.getAllEnvironments()
-    pythonEnvironments.value = response.items
-  } catch (error) {
-    console.error('Failed to fetch Python environments:', error)
-  }
-}
-
 const showCreateDialog = async () => {
   isEdit.value = false
   Object.assign(form, {
     name: '',
     description: '',
     command: '',
-    working_directory: '',
-    python_executable: '',
     project_id: undefined
   })
 
   await fetchProjects()
-  await fetchPythonEnvironments()
   dialogVisible.value = true
 }
 
 const showEditDialog = async (crawler: Crawler) => {
   isEdit.value = true
-  Object.assign(form, crawler)
+  Object.assign(form, {
+    id: crawler.id,
+    name: crawler.name,
+    description: crawler.description,
+    command: crawler.command,
+    project_id: crawler.project_id
+  })
 
   await fetchProjects()
-  await fetchPythonEnvironments()
   dialogVisible.value = true
 }
 
