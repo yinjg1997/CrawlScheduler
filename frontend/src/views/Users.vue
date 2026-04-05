@@ -14,6 +14,13 @@
       <el-table :data="users" v-loading="loading" stripe>
         <el-table-column prop="username" label="用户名" width="150" />
         <el-table-column prop="email" label="邮箱" width="200" />
+        <el-table-column prop="is_superuser" label="角色" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.is_superuser ? 'danger' : 'primary'">
+              {{ row.is_superuser ? '管理员' : '普通用户' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="is_active" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.is_active ? 'success' : 'info'">
@@ -115,6 +122,12 @@
             clearable
           />
         </el-form-item>
+        <el-form-item label="角色" prop="is_superuser">
+          <el-radio-group v-model="createForm.is_superuser">
+            <el-radio :label="false">普通用户</el-radio>
+            <el-radio :label="true">管理员</el-radio>
+          </el-radio-group>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createDialogVisible = false">取消</el-button>
@@ -180,14 +193,6 @@
         <el-form-item label="用户名">
           <el-input :value="currentUser?.username" disabled />
         </el-form-item>
-        <el-form-item label="旧密码" prop="old_password">
-          <el-input
-            v-model="passwordForm.old_password"
-            type="password"
-            placeholder="请输入旧密码"
-            show-password
-          />
-        </el-form-item>
         <el-form-item label="新密码" prop="new_password">
           <el-input
             v-model="passwordForm.new_password"
@@ -240,7 +245,8 @@ const passwordFormRef = ref<FormInstance>()
 const createForm = reactive({
   username: '',
   email: '',
-  password: ''
+  password: '',
+  is_superuser: false
 })
 
 const editForm = reactive({
@@ -249,7 +255,6 @@ const editForm = reactive({
 })
 
 const passwordForm = reactive({
-  old_password: '',
   new_password: '',
   confirm_password: ''
 })
@@ -276,10 +281,6 @@ const editRules: FormRules = {
 }
 
 const passwordRules: FormRules = {
-  old_password: [
-    { required: true, message: '请输入旧密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于 6 个字符', trigger: 'blur' }
-  ],
   new_password: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
     { min: 6, message: '密码长度不能少于 6 个字符', trigger: 'blur' }
@@ -392,7 +393,6 @@ const handleUpdate = async () => {
 // 显示修改密码对话框
 const showChangePasswordDialog = (user: User) => {
   currentUser.value = user
-  passwordForm.old_password = ''
   passwordForm.new_password = ''
   passwordForm.confirm_password = ''
   passwordDialogVisible.value = true
@@ -400,7 +400,6 @@ const showChangePasswordDialog = (user: User) => {
 
 // 重置密码表单
 const resetPasswordForm = () => {
-  passwordForm.old_password = ''
   passwordForm.new_password = ''
   passwordForm.confirm_password = ''
   passwordFormRef.value?.clearValidate()

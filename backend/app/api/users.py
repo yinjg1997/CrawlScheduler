@@ -31,13 +31,18 @@ async def get_users(
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
-    user_data: UserCreate,
+    user_data: dict,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_superuser)
 ):
     """Create a new user"""
+    username = user_data.get("username")
+    email = user_data.get("email")
+    password = user_data.get("password")
+    is_superuser = user_data.get("is_superuser", False)
+
     # Check if username already exists
-    existing_user = await UserService.get_by_username(db, user_data.username)
+    existing_user = await UserService.get_by_username(db, username)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -45,7 +50,7 @@ async def create_user(
         )
 
     # Check if email already exists
-    existing_email = await UserService.get_by_email(db, user_data.email)
+    existing_email = await UserService.get_by_email(db, email)
     if existing_email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -55,9 +60,10 @@ async def create_user(
     # Create new user
     user = await UserService.create(
         db,
-        username=user_data.username,
-        email=user_data.email,
-        password=user_data.password
+        username=username,
+        email=email,
+        password=password,
+        is_superuser=is_superuser
     )
 
     return UserResponse.model_validate(user)
@@ -106,23 +112,31 @@ async def update_user(
 @router.put("/{user_id}/password", response_model=UserResponse)
 async def change_user_password(
     user_id: int,
-    password_data: UserChangePassword,
+    password_data: dict,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_superuser)
 ):
-    """Change user password"""
+    """Change user password (admin only, no old password required)"""
+    new_password = password_data.get("new_password")
+    confirm_password = password_data.get("confirm_password")
+
+    if not new_password or not confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password is required"
+        )
+
     # Verify new password matches confirm password
-    if password_data.new_password != password_data.confirm_password:
+    if new_password != confirm_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="New password and confirm password do not match"
         )
 
-    user = await UserService.change_password(
+    user = await UserService.change_password_without_old(
         db,
         user_id=user_id,
-        old_password=password_data.old_password,
-        new_password=password_data.new_password
+        new_password=new_password
     )
 
     if not user:

@@ -146,6 +146,23 @@ class UserService:
         return user
 
     @staticmethod
+    async def change_password_without_old(
+        db: AsyncSession,
+        user_id: int,
+        new_password: str
+    ) -> Optional[User]:
+        """Change user password without old password (admin only)"""
+        user = await UserService.get_by_id(db, user_id)
+        if not user:
+            return None
+
+        # Update password
+        user.hashed_password = get_password_hash(new_password)
+        await db.commit()
+        await db.refresh(user)
+        return user
+
+    @staticmethod
     async def delete_user(
         db: AsyncSession,
         user_id: int
