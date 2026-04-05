@@ -62,7 +62,7 @@
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-switch v-model="row.is_active" @change="toggleSchedule(row)" />
+            <el-switch :model-value="row.is_active" @change="toggleSchedule(row)" />
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="180">
@@ -309,7 +309,7 @@ const toggleSchedule = async (schedule: Schedule) => {
   try {
     await store.toggleSchedule(schedule.id, getFilterParams())
     await fetchSchedules()
-    ElMessage.success(schedule.is_active ? '已禁用' : '已启用')
+    ElMessage.success(schedule.is_active ? '已启用' : '已禁用')
   } catch (error) {
     console.error('Failed to toggle:', error)
   }
