@@ -1,12 +1,14 @@
 from sqlalchemy import Column, Integer, DateTime
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from ..database import Base
+from ..config import settings
 
 
 class TimestampMixin:
     """Mixin for adding created_at and updated_at fields to models"""
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo(settings.TIMEZONE)), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo(settings.TIMEZONE)), onupdate=lambda: datetime.now(ZoneInfo(settings.TIMEZONE)), nullable=False)
 
 
 class BaseModel(Base):
