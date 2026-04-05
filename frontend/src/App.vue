@@ -100,13 +100,30 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
+<style>
+/* Global styles to remove browser defaults */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
 #app {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
 }
+</style>
 
+<style scoped>
 .app-container {
   height: 100%;
   display: flex;
@@ -120,6 +137,8 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
+  height: 60px;
+  flex-shrink: 0;
 }
 
 .app-title {
@@ -147,6 +166,7 @@ onMounted(async () => {
 .app-aside {
   background-color: #f5f5f5;
   border-right: 1px solid #e6e6e6;
+  flex-shrink: 0;
 }
 
 .app-main {
