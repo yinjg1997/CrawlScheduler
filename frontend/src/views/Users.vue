@@ -1,27 +1,26 @@
 <template>
-  <div class="users-container">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>用户管理</span>
-          <el-button type="primary" @click="showCreateDialog">
-            <el-icon><Plus /></el-icon>
-            创建用户
-          </el-button>
-        </div>
-      </template>
+  <div class="users-view">
+    <div class="page-header">
+      <h2>用户管理</h2>
+      <el-button type="primary" @click="showCreateDialog">
+        <el-icon><Plus /></el-icon>
+        创建用户
+      </el-button>
+    </div>
 
+    <div class="table-container">
       <el-table :data="users" v-loading="loading" stripe>
-        <el-table-column prop="username" label="用户名" width="150" />
-        <el-table-column prop="email" label="邮箱" width="200" />
-        <el-table-column prop="is_superuser" label="角色" width="100">
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="username" label="用户名" />
+        <el-table-column prop="email" label="邮箱" />
+        <el-table-column label="角色" width="100">
           <template #default="{ row }">
             <el-tag :type="row.is_superuser ? 'danger' : 'primary'">
               {{ row.is_superuser ? '管理员' : '普通用户' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="is_active" label="状态" width="100">
+        <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.is_active ? 'success' : 'info'">
               {{ row.is_active ? '启用' : '禁用' }}
@@ -33,12 +32,12 @@
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="220">
           <template #default="{ row }">
             <el-button
               type="primary"
               size="small"
-              link
+              text
               @click="showEditDialog(row)"
             >
               编辑
@@ -46,7 +45,7 @@
             <el-button
               type="primary"
               size="small"
-              link
+              text
               @click="showChangePasswordDialog(row)"
             >
               修改密码
@@ -58,45 +57,37 @@
               @confirm="handleDelete(row.id)"
             >
               <template #reference>
-                <el-button
-                  type="danger"
-                  size="small"
-                  link
-                >
-                  删除
-                </el-button>
+                <el-button type="danger" size="small" text>删除</el-button>
               </template>
             </el-popconfirm>
           </template>
         </el-table-column>
       </el-table>
+    </div>
 
-      <!-- 分页 -->
-      <div class="pagination">
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="total"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handlePageChange"
-        />
-      </div>
-    </el-card>
+    <el-pagination
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :page-sizes="[10, 20, 50, 100]"
+      :total="total"
+      layout="total, sizes, prev, pager, next, jumper"
+      @size-change="handleSizeChange"
+      @current-change="handlePageChange"
+      background
+    />
 
     <!-- 创建用户对话框 -->
     <el-dialog
       v-model="createDialogVisible"
       title="创建用户"
-      width="500px"
+      width="600px"
       @close="resetCreateForm"
     >
       <el-form
         ref="createFormRef"
         :model="createForm"
         :rules="createRules"
-        label-width="80px"
+        label-width="120px"
       >
         <el-form-item label="用户名" prop="username">
           <el-input
@@ -141,14 +132,14 @@
     <el-dialog
       v-model="editDialogVisible"
       title="编辑用户"
-      width="500px"
+      width="600px"
       @close="resetEditForm"
     >
       <el-form
         ref="editFormRef"
         :model="editForm"
         :rules="editRules"
-        label-width="80px"
+        label-width="120px"
       >
         <el-form-item label="用户名">
           <el-input :value="currentUser?.username" disabled />
@@ -181,14 +172,14 @@
     <el-dialog
       v-model="passwordDialogVisible"
       title="修改密码"
-      width="500px"
+      width="600px"
       @close="resetPasswordForm"
     >
       <el-form
         ref="passwordFormRef"
         :model="passwordForm"
         :rules="passwordRules"
-        label-width="100px"
+        label-width="120px"
       >
         <el-form-item label="用户名">
           <el-input :value="currentUser?.username" disabled />
@@ -463,19 +454,40 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.users-container {
-  padding: 20px;
+.users-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-.card-header {
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 20px;
 }
 
-.pagination {
-  margin-top: 20px;
-  display: flex;
-  justify-content: center;
+.page-header h2 {
+  margin: 0;
+}
+
+:deep(.el-table) {
+  flex: 1;
+}
+
+.table-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+:deep(.el-table__body-wrapper) {
+  overflow-y: auto;
+  max-height: calc(100vh - 400px);
+}
+
+.el-pagination {
+  padding: 16px 0 0 0;
+  flex-shrink: 0;
 }
 </style>
