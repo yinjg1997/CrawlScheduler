@@ -58,9 +58,18 @@
     <div class="logs-container">
       <div class="logs-header">
         <h3>执行日志</h3>
-        <div class="logs-status" v-if="wsConnected">
-          <el-icon class="live-indicator"><VideoPlay /></el-icon>
-          <span>实时日志</span>
+        <div class="logs-controls">
+          <div class="logs-status" v-if="wsConnected">
+            <el-icon class="live-indicator"><VideoPlay /></el-icon>
+            <span>实时日志</span>
+          </div>
+          <el-switch
+            v-model="autoScroll"
+            active-text="自动滚动"
+            inline-prompt
+            size="small"
+            style="--el-switch-on-color: #13ce66; --el-switch-off-color: #dcdfe6"
+          />
         </div>
       </div>
       <div class="logs-content" ref="logsContainer">
@@ -90,6 +99,7 @@ const router = useRouter()
 const task = ref<TaskExecution | null>(null)
 const logs = ref<string[]>([])
 const wsConnected = ref(false)
+const autoScroll = ref(true)
 const logsContainer = ref<HTMLElement>()
 let ws: WebSocket | null = null
 let refreshTimer: ReturnType<typeof setInterval> | null = null
@@ -162,6 +172,7 @@ const fetchLogs = async () => {
 }
 
 const scrollToBottom = async () => {
+  if (!autoScroll.value) return
   await nextTick()
   if (logsContainer.value) {
     logsContainer.value.scrollTop = logsContainer.value.scrollHeight
@@ -306,6 +317,12 @@ onUnmounted(() => {
   padding: 12px 16px;
   background-color: #f5f5f5;
   border-bottom: 1px solid #e6e6e6;
+}
+
+.logs-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .logs-header h3 {
