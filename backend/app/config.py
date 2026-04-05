@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     # Scheduler
     SCHEDULER_ENABLED: bool = True
 
+    # Security
+    SECRET_KEY: str = "your-secret-key-change-this-in-production-please"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+    ALGORITHM: str = "HS256"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

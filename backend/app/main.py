@@ -8,7 +8,8 @@ import json
 
 from .database import engine, Base
 from .config import settings
-from .api import crawlers_router, tasks_router, schedules_router, websocket_router, python_environments_router
+from .models import User
+from .api import crawlers_router, tasks_router, schedules_router, websocket_router, python_environments_router, auth_router, users_router
 from .scheduler.scheduler import setup_scheduler, shutdown_scheduler
 
 
@@ -74,7 +75,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+# Include routers (auth router first as it doesn't require authentication)
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(users_router, prefix="/api/v1")
 app.include_router(crawlers_router)
 app.include_router(tasks_router)
 app.include_router(schedules_router)

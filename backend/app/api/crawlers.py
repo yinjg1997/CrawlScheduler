@@ -11,11 +11,12 @@ from ..services.crawler_service import CrawlerService
 from ..services.task_service import TaskService
 from ..services.executor import TaskExecutor
 from ..config import settings
+from ..auth import get_current_active_user
 
 router = APIRouter(prefix="/api/v1/crawlers", tags=["crawlers"])
 
 
-@router.post("/", response_model=CrawlerResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=CrawlerResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(get_current_active_user)])
 async def create_crawler(
     crawler: CrawlerCreate,
     db: AsyncSession = Depends(get_db)
@@ -27,7 +28,7 @@ async def create_crawler(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/")
+@router.get("/", dependencies=[Depends(get_current_active_user)])
 async def get_crawlers(
     skip: int = 0,
     limit: int = 100,
@@ -37,7 +38,7 @@ async def get_crawlers(
     return await CrawlerService.get_all(db, skip=skip, limit=limit)
 
 
-@router.get("/{crawler_id}", response_model=CrawlerResponse)
+@router.get("/{crawler_id}", response_model=CrawlerResponse, dependencies=[Depends(get_current_active_user)])
 async def get_crawler(
     crawler_id: int,
     db: AsyncSession = Depends(get_db)
@@ -49,7 +50,7 @@ async def get_crawler(
     return crawler
 
 
-@router.put("/{crawler_id}", response_model=CrawlerResponse)
+@router.put("/{crawler_id}", response_model=CrawlerResponse, dependencies=[Depends(get_current_active_user)])
 async def update_crawler(
     crawler_id: int,
     crawler_update: CrawlerUpdate,
@@ -65,7 +66,7 @@ async def update_crawler(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/{crawler_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{crawler_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_active_user)])
 async def delete_crawler(
     crawler_id: int,
     db: AsyncSession = Depends(get_db)
@@ -76,7 +77,7 @@ async def delete_crawler(
         raise HTTPException(status_code=404, detail="Crawler not found")
 
 
-@router.post("/{crawler_id}/execute", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/{crawler_id}/execute", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(get_current_active_user)])
 async def execute_crawler(
     crawler_id: int,
     db: AsyncSession = Depends(get_db)
@@ -98,7 +99,7 @@ async def execute_crawler(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/{crawler_id}/upload", status_code=status.HTTP_200_OK)
+@router.post("/{crawler_id}/upload", status_code=status.HTTP_200_OK, dependencies=[Depends(get_current_active_user)])
 async def upload_crawler_file(
     crawler_id: int,
     file_path: str,
@@ -131,7 +132,7 @@ async def upload_crawler_file(
 # Cache for Python environments
 _python_environments_cache = None
 
-@router.get("/python/environments", status_code=status.HTTP_200_OK)
+@router.get("/python/environments", status_code=status.HTTP_200_OK, dependencies=[Depends(get_current_active_user)])
 async def get_python_environments():
     """Get available Python environments (conda and system)"""
     import shutil

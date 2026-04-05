@@ -10,11 +10,12 @@ from ..schemas.python_environment import (
     PythonEnvironmentListItem
 )
 from ..services.python_environment_service import PythonEnvironmentService
+from ..auth import get_current_active_user
 
 router = APIRouter(prefix="/api/v1/python-environments", tags=["python-environments"])
 
 
-@router.post("/", response_model=PythonEnvironmentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=PythonEnvironmentResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(get_current_active_user)])
 async def create_python_environment(
     env: PythonEnvironmentCreate,
     db: AsyncSession = Depends(get_db)
@@ -26,7 +27,7 @@ async def create_python_environment(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/", response_model=List[PythonEnvironmentResponse])
+@router.get("/", response_model=List[PythonEnvironmentResponse], dependencies=[Depends(get_current_active_user)])
 async def get_python_environments(
     skip: int = 0,
     limit: int = 100,
@@ -36,7 +37,7 @@ async def get_python_environments(
     return await PythonEnvironmentService.get_all(db, skip=skip, limit=limit)
 
 
-@router.get("/{env_id}", response_model=PythonEnvironmentResponse)
+@router.get("/{env_id}", response_model=PythonEnvironmentResponse, dependencies=[Depends(get_current_active_user)])
 async def get_python_environment(
     env_id: int,
     db: AsyncSession = Depends(get_db)
@@ -48,7 +49,7 @@ async def get_python_environment(
     return env
 
 
-@router.put("/{env_id}", response_model=PythonEnvironmentResponse)
+@router.put("/{env_id}", response_model=PythonEnvironmentResponse, dependencies=[Depends(get_current_active_user)])
 async def update_python_environment(
     env_id: int,
     env_update: PythonEnvironmentUpdate,
@@ -64,7 +65,7 @@ async def update_python_environment(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/{env_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{env_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_active_user)])
 async def delete_python_environment(
     env_id: int,
     db: AsyncSession = Depends(get_db)
@@ -78,7 +79,7 @@ async def delete_python_environment(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/all/environments")
+@router.get("/all/environments", dependencies=[Depends(get_current_active_user)])
 async def get_all_environments_with_system(
     skip: int = 0,
     limit: int = 100,

@@ -15,9 +15,13 @@ const apiClient = axios.create({
   timeout: 30000
 }) as ApiClient
 
-// Request interceptor
+// Request interceptor - Add Authorization header
 apiClient.interceptors.request.use(
   (config) => {
+    const token = localStorage.getItem('token')
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
     return config
   },
   (error: any) => {
@@ -25,14 +29,30 @@ apiClient.interceptors.request.use(
   }
 )
 
-// Response interceptor
+// Response interceptor - Handle 401 errors
 apiClient.interceptors.response.use(
   (response) => {
     return response.data
   },
   (error: any) => {
-    const message = error.response?.data?.detail || error.message || '请求失败'
-    ElMessage.error(message)
+    // Handle 401 Unauthorized errors
+    if (error.response?.status === 401) {
+      // Clear token and user from localStorage
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+
+      // Show error message
+      ElMessage.error('登录已过期，请重新登录')
+
+      // Redirect to login page
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
+    } else {
+      const message = error.response?.data?.detail || error.message || '请求失败'
+      ElMessage.error(message)
+    }
+
     return Promise.reject(error)
   }
 )

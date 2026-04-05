@@ -9,11 +9,12 @@ from ..schemas.schedule import ScheduleCreate, ScheduleUpdate, ScheduleResponse
 from ..services.schedule_service import ScheduleService
 from ..scheduler.scheduler import add_schedule_job, update_schedule_job, remove_schedule_job
 from ..config import settings
+from ..auth import get_current_active_user
 
 router = APIRouter(prefix="/api/v1/schedules", tags=["schedules"])
 
 
-@router.get("/_preview_next_run")
+@router.get("/_preview_next_run", dependencies=[Depends(get_current_active_user)])
 async def preview_next_run(
     cron_expression: str
 ):
@@ -36,7 +37,7 @@ async def preview_next_run(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/", response_model=ScheduleResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ScheduleResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(get_current_active_user)])
 async def create_schedule(
     schedule: ScheduleCreate,
     db: AsyncSession = Depends(get_db)
@@ -54,7 +55,7 @@ async def create_schedule(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/")
+@router.get("/", dependencies=[Depends(get_current_active_user)])
 async def get_schedules(
     skip: int = 0,
     limit: int = 100,
@@ -74,7 +75,7 @@ async def get_schedules(
     )
 
 
-@router.get("/{schedule_id}", response_model=ScheduleResponse)
+@router.get("/{schedule_id}", response_model=ScheduleResponse, dependencies=[Depends(get_current_active_user)])
 async def get_schedule(
     schedule_id: int,
     db: AsyncSession = Depends(get_db)
@@ -86,7 +87,7 @@ async def get_schedule(
     return schedule
 
 
-@router.put("/{schedule_id}", response_model=ScheduleResponse)
+@router.put("/{schedule_id}", response_model=ScheduleResponse, dependencies=[Depends(get_current_active_user)])
 async def update_schedule(
     schedule_id: int,
     schedule_update: ScheduleUpdate,
@@ -111,7 +112,7 @@ async def update_schedule(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_active_user)])
 async def delete_schedule(
     schedule_id: int,
     db: AsyncSession = Depends(get_db)
@@ -129,7 +130,7 @@ async def delete_schedule(
         raise HTTPException(status_code=404, detail="Schedule not found")
 
 
-@router.put("/{schedule_id}/toggle", response_model=ScheduleResponse)
+@router.put("/{schedule_id}/toggle", response_model=ScheduleResponse, dependencies=[Depends(get_current_active_user)])
 async def toggle_schedule(
     schedule_id: int,
     db: AsyncSession = Depends(get_db)
@@ -149,7 +150,7 @@ async def toggle_schedule(
     return db_schedule
 
 
-@router.get("/{schedule_id}/history")
+@router.get("/{schedule_id}/history", dependencies=[Depends(get_current_active_user)])
 async def get_schedule_history(
     schedule_id: int,
     skip: int = 0,

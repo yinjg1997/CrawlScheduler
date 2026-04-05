@@ -7,6 +7,7 @@ from ..database import get_db
 from ..schemas.task import TaskExecutionResponse
 from ..services.task_service import TaskService
 from ..services.executor import TaskExecutor
+from ..auth import get_current_active_user
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
@@ -15,7 +16,7 @@ class BulkDeleteRequest(BaseModel):
     task_ids: List[int]
 
 
-@router.get("/")
+@router.get("/", dependencies=[Depends(get_current_active_user)])
 async def get_tasks(
     skip: int = 0,
     limit: int = 100,
@@ -39,7 +40,7 @@ async def get_tasks(
     )
 
 
-@router.get("/statistics")
+@router.get("/statistics", dependencies=[Depends(get_current_active_user)])
 async def get_task_statistics(
     crawler_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db)
@@ -48,7 +49,7 @@ async def get_task_statistics(
     return await TaskService.get_statistics(db, crawler_id=crawler_id)
 
 
-@router.get("/{task_id}", response_model=TaskExecutionResponse)
+@router.get("/{task_id}", response_model=TaskExecutionResponse, dependencies=[Depends(get_current_active_user)])
 async def get_task(
     task_id: int,
     db: AsyncSession = Depends(get_db)
@@ -60,7 +61,7 @@ async def get_task(
     return task
 
 
-@router.get("/{task_id}/logs")
+@router.get("/{task_id}/logs", dependencies=[Depends(get_current_active_user)])
 async def get_task_logs(
     task_id: int,
     offset: int = 0,
@@ -81,7 +82,7 @@ async def get_task_logs(
     }
 
 
-@router.post("/{task_id}/cancel", status_code=status.HTTP_200_OK)
+@router.post("/{task_id}/cancel", status_code=status.HTTP_200_OK, dependencies=[Depends(get_current_active_user)])
 async def cancel_task(
     task_id: int,
     db: AsyncSession = Depends(get_db)
@@ -103,7 +104,7 @@ async def cancel_task(
         return {"message": "Task status updated to cancelled"}
 
 
-@router.post("/{task_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/{task_id}/retry", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(get_current_active_user)])
 async def retry_task(
     task_id: int,
     db: AsyncSession = Depends(get_db)
@@ -131,7 +132,7 @@ async def retry_task(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{task_id}/status")
+@router.get("/{task_id}/status", dependencies=[Depends(get_current_active_user)])
 async def get_task_status(
     task_id: int,
     db: AsyncSession = Depends(get_db)
@@ -148,7 +149,7 @@ async def get_task_status(
     }
 
 
-@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_active_user)])
 async def delete_task(
     task_id: int,
     db: AsyncSession = Depends(get_db)
@@ -164,7 +165,7 @@ async def delete_task(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/", status_code=status.HTTP_200_OK)
+@router.delete("/", status_code=status.HTTP_200_OK, dependencies=[Depends(get_current_active_user)])
 async def bulk_delete_tasks(
     request: BulkDeleteRequest,
     db: AsyncSession = Depends(get_db)
