@@ -170,7 +170,9 @@ const scrollToBottom = async () => {
 
 const connectWebSocket = () => {
   const id = route.params.id as string
-  const wsUrl = `ws://localhost:5173/ws/tasks/${id}/logs`
+  // Use relative URL for WebSocket - will be proxied by Vite to backend
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const wsUrl = `${protocol}//${window.location.host}/ws/tasks/${id}/logs`
 
   ws = new WebSocket(wsUrl)
 
@@ -189,6 +191,11 @@ const connectWebSocket = () => {
       } else if (data.type === 'complete') {
         wsConnected.value = false
         fetchTask() // Refresh task status
+      } else if (data.type === 'status') {
+        // Update task status if changed
+        if (task.value && task.value.status !== data.status) {
+          task.value.status = data.status
+        }
       }
     } catch (error) {
       console.error('Failed to parse WebSocket message:', error)
@@ -232,14 +239,17 @@ const goBack = () => {
 onMounted(async () => {
   await fetchTask()
 
-  // Connect to WebSocket if task is pending or running
-  if (task.value && (task.value.status === 'pending' || task.value.status === 'running')) {
+  // Connect to WebSocket if task is pending, running, or recently completed
+  // This ensures we can get logs for tasks that are still streaming
+  if (task.value) {
     connectWebSocket()
 
-    // Auto-refresh task status
-    refreshTimer = setInterval(() => {
-      fetchTask()
-    }, 3000)
+    // Only auto-refresh task status if task is still pending or running
+    if (task.value.status === 'pending' || task.value.status === 'running') {
+      refreshTimer = setInterval(() => {
+        fetchTask()
+      }, 3000)
+    }
   }
 })
 

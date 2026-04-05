@@ -37,8 +37,8 @@ class TaskExecutor:
             if not crawler:
                 raise ValueError(f"Crawler with ID {task.crawler_id} not found")
 
-            # Create log file
-            log_file_path = settings.LOGS_DIR / f"task_{task_id}_{datetime.now(ZoneInfo(settings.TIMEZONE)).strftime('%Y%m%d_%H%M%S')}.log"
+            # Create log file with fixed name for WebSocket streaming
+            log_file_path = settings.LOGS_DIR / f"task_{task_id}.log"
             task.log_file_path = str(log_file_path)
             await executor_db.commit()
 
@@ -69,14 +69,33 @@ class TaskExecutor:
                     # Wrap command with custom python interpreter
                     exec_command = f'{crawler.python_executable} -m {crawler.command}'
 
-            # Execute command
-            with open(log_file_path, 'w', encoding='utf-8') as log_file:
+            # Execute command with unbuffered output for real-time logging
+            # Set PYTHONUNBUFFERED=1 to disable Python output buffering
+            env = os.environ.copy()
+            env['PYTHONUNBUFFERED'] = '1'
+
+            # Also add -u flag to Python commands for unbuffered output
+            if 'python' in exec_command.lower():
+                # Check if -u flag is already present
+                if '-u' not in exec_command:
+                    # Insert -u after python command
+                    import re
+                    exec_command = re.sub(
+                        r'(python3?\s+)',
+                        r'\1-u ',
+                        exec_command,
+                        count=1,
+                        flags=re.IGNORECASE
+                    )
+
+            with open(log_file_path, 'w', encoding='utf-8', buffering=1) as log_file:  # Line buffering
                 process = await asyncio.create_subprocess_shell(
                     exec_command,
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
                     cwd=str(work_dir),
-                    shell=True
+                    shell=True,
+                    env=env
                 )
 
                 # Track running process
@@ -162,8 +181,10 @@ class TaskExecutor:
 
             # Stream new logs as they arrive
             last_size = log_file.stat().st_size if log_file.exists() else 0
+            no_change_count = 0
+            max_no_change = 10  # Stop after 5 seconds of no changes (0.5s * 10)
 
-            while task_id in TaskExecutor._running_tasks or task_id in TaskExecutor._ws_connections:
+            while task_id in TaskExecutor._running_tasks or (task_id in TaskExecutor._ws_connections and no_change_count < max_no_change):
                 try:
                     if log_file.exists():
                         current_size = log_file.stat().st_size
@@ -174,6 +195,9 @@ class TaskExecutor:
                                 for line in new_lines:
                                     await websocket.send_json({"type": "log", "data": line.rstrip()})
                             last_size = current_size
+                            no_change_count = 0
+                        else:
+                            no_change_count += 1
 
                     await asyncio.sleep(0.5)
                 except Exception:
