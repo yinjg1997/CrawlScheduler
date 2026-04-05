@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field, HttpUrl, field_serializer
+from pydantic import BaseModel, Field, HttpUrl, field_serializer, model_validator
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Any
 from zoneinfo import ZoneInfo
 from ..config import settings
 
@@ -34,6 +34,23 @@ class CrawlerResponse(CrawlerBase):
     created_at: datetime
     updated_at: datetime
     project_name: Optional[str] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def populate_project_name(cls, data: Any) -> Any:
+        """Populate project_name from project relationship"""
+        if isinstance(data, dict):
+            # If data is a dict, check if it has project object
+            if 'project' in data and data['project'] is not None:
+                if isinstance(data['project'], dict):
+                    data['project_name'] = data['project'].get('name')
+                else:
+                    data['project_name'] = getattr(data['project'], 'name', None)
+        elif hasattr(data, 'project'):
+            # If data is an object with project attribute
+            if data.project is not None:
+                data.project_name = getattr(data.project, 'name', None)
+        return data
 
     @field_serializer('created_at', 'updated_at', when_used='json')
     def serialize_datetime(self, dt: datetime) -> str:
