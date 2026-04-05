@@ -151,8 +151,9 @@ html, body {
 
 .aside-header {
   background-color: #2b3a4d;
-  padding: 15px 20px;
+  padding: 15px;
   border-bottom: 1px solid #3a4b5c;
+  width: 100%;
 }
 
 .app-title {
@@ -161,10 +162,11 @@ html, body {
   justify-content: center;
   gap: 10px;
   margin: 0;
+  padding: 0;
   font-size: 18px;
   font-weight: 500;
   color: #fff;
-  text-align: center;
+  width: 100%;
 }
 
 .app-header {
