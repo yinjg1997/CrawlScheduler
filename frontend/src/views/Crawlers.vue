@@ -14,7 +14,12 @@
         <el-table-column prop="name" label="名称" />
         <el-table-column prop="description" label="描述" show-overflow-tooltip />
         <el-table-column prop="command" label="命令" show-overflow-tooltip />
-        <el-table-column prop="project_name" label="项目" width="120" />
+        <el-table-column label="项目" width="120">
+          <template #default="{ row }">
+            <span v-if="row.project_name">{{ row.project_name }}</span>
+            <span v-else class="text-gray-400">-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="Python环境" width="150" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.python_executable">{{ row.python_executable }}</span>
