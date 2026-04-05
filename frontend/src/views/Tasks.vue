@@ -2,10 +2,6 @@
   <div class="tasks-view">
     <div class="page-header">
       <h2>任务列表</h2>
-      <el-button @click="refreshTasks">
-        <el-icon><Refresh /></el-icon>
-        刷新
-      </el-button>
     </div>
 
     <div class="filter-bar">
@@ -186,7 +182,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '@/store'
 import { tasksApi, type TaskExecution } from '@/api/tasks'
-import { Refresh, Search, Delete } from '@element-plus/icons-vue'
+import { Search, Delete } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const store = useAppStore()
@@ -281,18 +277,6 @@ const getStatusLabel = (status: string) => {
     cancelled: '已取消'
   }
   return labels[status] || status
-}
-
-const refreshTasks = async () => {
-  loading.value = true
-  try {
-    await fetchTasks()
-    ElMessage.success('刷新成功')
-  } catch (error) {
-    console.error('Failed to refresh:', error)
-  } finally {
-    loading.value = false
-  }
 }
 
 const fetchTasks = async () => {
