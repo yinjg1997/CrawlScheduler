@@ -48,10 +48,6 @@
           <el-icon><VideoPause /></el-icon>
           取消任务
         </el-button>
-        <el-button @click="refreshTask">
-          <el-icon><Refresh /></el-icon>
-          刷新状态
-        </el-button>
       </div>
     </div>
 
@@ -91,7 +87,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { tasksApi, type TaskExecution } from '@/api/tasks'
-import { VideoPause, Refresh, VideoPlay } from '@element-plus/icons-vue'
+import { VideoPause, VideoPlay } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -233,14 +229,6 @@ const cancelTask = async () => {
   } catch (error) {
     console.error('Failed to cancel task:', error)
   }
-}
-
-const refreshTask = async () => {
-  await fetchTask()
-  if (task.value?.status !== 'pending' && task.value?.status !== 'running') {
-    await fetchLogs()
-  }
-  ElMessage.success('刷新成功')
 }
 
 const goBack = () => {
