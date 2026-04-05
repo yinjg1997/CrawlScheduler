@@ -42,7 +42,6 @@ class ScheduleUpdate(BaseModel):
     cron_expression: Optional[str] = Field(None, min_length=1, max_length=100)
     is_active: Optional[bool] = None
     description: Optional[str] = Field(None, max_length=500)
-    next_run_time: Optional[datetime] = None
 
     @field_validator('cron_expression')
     @classmethod
