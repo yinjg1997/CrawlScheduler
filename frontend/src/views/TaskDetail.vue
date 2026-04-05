@@ -68,7 +68,7 @@
           暂无日志
         </div>
         <div v-else class="log-lines">
-          <div v-for="(log, index) in logs" :key="index" class="log-line">
+          <div v-for="(log, index) in logs" :key="index" :class="['log-line', getLogLevelClass(log)]">
             {{ log }}
           </div>
         </div>
@@ -118,6 +118,21 @@ const getStatusLabel = (status: string) => {
     cancelled: '已取消'
   }
   return labels[status] || status
+}
+
+const getLogLevelClass = (log: string) => {
+  const match = log.match(/\|\s*(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s*\|/)
+  if (!match) return ''
+
+  const level = match[1]
+  const levelClasses: Record<string, string> = {
+    DEBUG: 'log-debug',
+    INFO: 'log-info',
+    WARNING: 'log-warning',
+    ERROR: 'log-error',
+    CRITICAL: 'log-critical'
+  }
+  return levelClasses[level] || ''
 }
 
 const fetchTask = async () => {
@@ -335,5 +350,27 @@ onUnmounted(() => {
 .log-line {
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.log-line.log-debug {
+  color: #999;
+}
+
+.log-line.log-info {
+  color: #61afef;
+}
+
+.log-line.log-warning {
+  color: #e5c07b;
+}
+
+.log-line.log-error {
+  color: #e06c75;
+}
+
+.log-line.log-critical {
+  color: #ff5555;
+  font-weight: bold;
+  text-shadow: 0 0 2px rgba(255, 85, 85, 0.5);
 }
 </style>
