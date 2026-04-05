@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func
 from sqlalchemy.orm import selectinload
 from ..models import Crawler
-from ..schemas.crawler import CrawlerCreate, CrawlerUpdate
+from ..schemas.crawler import CrawlerCreate, CrawlerUpdate, CrawlerResponse
 
 
 class CrawlerService:
@@ -24,7 +24,10 @@ class CrawlerService:
             .limit(limit)
             .order_by(Crawler.created_at.desc())
         )
-        items = list(result.scalars().all())
+        crawlers = list(result.scalars().all())
+
+        # Serialize through CrawlerResponse to get project_name
+        items = [CrawlerResponse.model_validate(crawler) for crawler in crawlers]
 
         return {
             "total": total,
@@ -32,7 +35,7 @@ class CrawlerService:
         }
 
     @staticmethod
-    async def get_by_id(db: AsyncSession, crawler_id: int) -> Optional[Crawler]:
+    async def get_by_id(db: AsyncSession, crawler_id: int) -> Optional[CrawlerResponse]:
         """Get a crawler by ID"""
         result = await db.execute(
             select(Crawler)
@@ -40,7 +43,10 @@ class CrawlerService:
             .options(selectinload(Crawler.project))
             .where(Crawler.id == crawler_id)
         )
-        return result.scalar_one_or_none()
+        crawler = result.scalar_one_or_none()
+        if crawler:
+            return CrawlerResponse.model_validate(crawler)
+        return None
 
     @staticmethod
     async def get_by_name(db: AsyncSession, name: str) -> Optional[Crawler]:
@@ -51,7 +57,7 @@ class CrawlerService:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def create(db: AsyncSession, crawler: CrawlerCreate) -> Crawler:
+    async def create(db: AsyncSession, crawler: CrawlerCreate) -> CrawlerResponse:
         """Create a new crawler"""
         # Check if crawler with same name exists
         existing = await CrawlerService.get_by_name(db, crawler.name)
@@ -62,16 +68,24 @@ class CrawlerService:
         db.add(db_crawler)
         await db.commit()
         await db.refresh(db_crawler)
-        return db_crawler
+
+        # Reload with project relationship
+        await db.refresh(db_crawler, ['project'])
+        return CrawlerResponse.model_validate(db_crawler)
 
     @staticmethod
     async def update(
         db: AsyncSession,
         crawler_id: int,
         crawler_update: CrawlerUpdate
-    ) -> Optional[Crawler]:
+    ) -> Optional[CrawlerResponse]:
         """Update a crawler"""
-        db_crawler = await CrawlerService.get_by_id(db, crawler_id)
+        # Get the actual crawler model, not the response
+        result = await db.execute(
+            select(Crawler)
+            .where(Crawler.id == crawler_id)
+        )
+        db_crawler = result.scalar_one_or_none()
         if not db_crawler:
             return None
 
@@ -87,7 +101,10 @@ class CrawlerService:
 
         await db.commit()
         await db.refresh(db_crawler)
-        return db_crawler
+
+        # Reload with project relationship
+        await db.refresh(db_crawler, ['project'])
+        return CrawlerResponse.model_validate(db_crawler)
 
     @staticmethod
     async def delete(db: AsyncSession, crawler_id: int) -> bool:
