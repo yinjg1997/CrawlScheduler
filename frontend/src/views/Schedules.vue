@@ -309,7 +309,7 @@ const toggleSchedule = async (schedule: Schedule) => {
   try {
     await store.toggleSchedule(schedule.id, getFilterParams())
     await fetchSchedules()
-    ElMessage.success(schedule.is_active ? '已启用' : '已禁用')
+    ElMessage.success(schedule.is_active ? '已禁用' : '已启用')
   } catch (error) {
     console.error('Failed to toggle:', error)
   }
