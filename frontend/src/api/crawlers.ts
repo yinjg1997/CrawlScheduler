@@ -16,7 +16,6 @@ export interface Crawler {
   working_directory: string
   file_path?: string
   python_executable?: string
-  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -28,7 +27,6 @@ export interface CrawlerCreate {
   working_directory: string
   file_path?: string
   python_executable?: string
-  is_active: boolean
 }
 
 export interface CrawlerUpdate {
@@ -38,7 +36,6 @@ export interface CrawlerUpdate {
   working_directory?: string
   file_path?: string
   python_executable?: string
-  is_active?: boolean
 }
 
 export interface PaginatedCrawlers {

@@ -8,14 +8,12 @@
 
     <el-descriptions v-if="crawler" :column="2" border class="crawler-info">
       <el-descriptions-item label="ID">{{ crawler.id }}</el-descriptions-item>
-      <el-descriptions-item label="状态">
-        <el-tag :type="crawler.is_active ? 'success' : 'info'">
-          {{ crawler.is_active ? '启用' : '禁用' }}
-        </el-tag>
-      </el-descriptions-item>
-      <el-descriptions-item label="名称">{{ crawler.name }}</el-descriptions-item>
       <el-descriptions-item label="创建时间">
         {{ formatDate(crawler.created_at) }}
+      </el-descriptions-item>
+      <el-descriptions-item label="名称">{{ crawler.name }}</el-descriptions-item>
+      <el-descriptions-item label="更新时间">
+        {{ formatDate(crawler.updated_at) }}
       </el-descriptions-item>
       <el-descriptions-item label="执行命令" :span="2">
         <el-text class="command-text">{{ crawler.command }}</el-text>
@@ -32,7 +30,7 @@
     </el-descriptions>
 
     <div class="actions">
-      <el-button type="primary" @click="executeCrawler" :disabled="!crawler?.is_active">
+      <el-button type="primary" @click="executeCrawler">
         <el-icon><VideoPlay /></el-icon>
         执行爬虫
       </el-button>

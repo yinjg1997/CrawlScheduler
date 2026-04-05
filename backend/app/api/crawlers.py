@@ -86,9 +86,6 @@ async def execute_crawler(
     if not crawler:
         raise HTTPException(status_code=404, detail="Crawler not found")
 
-    if not crawler.is_active:
-        raise HTTPException(status_code=400, detail="Crawler is not active")
-
     try:
         task = await TaskService.create(db, crawler_id, triggered_by="manual")
 
