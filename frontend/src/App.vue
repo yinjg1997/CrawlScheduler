@@ -4,24 +4,15 @@
     <router-view v-if="route.path === '/login'" />
 
     <!-- Show main app if authenticated -->
-    <el-container v-else class="app-container">
-      <el-header class="app-header">
-        <h1 class="app-title">
-          <el-icon><Spider /></el-icon>
-          CrawlScheduler
-        </h1>
-        <div class="header-right">
-          <span class="user-info">
-            <el-icon><User /></el-icon>
-            {{ authStore.user?.username }}
-          </span>
-          <el-button type="danger" size="small" @click="handleLogout">
-            退出
-          </el-button>
-        </div>
-      </el-header>
+    <div v-else class="common-layout">
       <el-container>
         <el-aside width="200px" class="app-aside">
+          <div class="aside-header">
+            <h1 class="app-title">
+              <el-icon><Spider /></el-icon>
+              CrawlScheduler
+            </h1>
+          </div>
           <el-menu
             :default-active="activeMenu"
             router
@@ -53,11 +44,24 @@
             </el-menu-item>
           </el-menu>
         </el-aside>
-        <el-main class="app-main">
-          <router-view />
-        </el-main>
+        <el-container>
+          <el-header class="app-header">
+            <div class="header-right">
+              <span class="user-info">
+                <el-icon><User /></el-icon>
+                {{ authStore.user?.username }}
+              </span>
+              <el-button type="danger" size="small" @click="handleLogout">
+                退出
+              </el-button>
+            </div>
+          </el-header>
+          <el-main class="app-main">
+            <router-view />
+          </el-main>
+        </el-container>
       </el-container>
-    </el-container>
+    </div>
   </div>
 </template>
 
@@ -121,24 +125,34 @@ html, body {
   width: 100vw;
   overflow: hidden;
 }
+
+.common-layout {
+  height: 100%;
+  width: 100%;
+}
+
+.common-layout .el-container {
+  height: 100%;
+}
+
+.common-layout .el-container:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+}
 </style>
 
 <style scoped>
-.app-container {
-  height: 100%;
+.app-aside {
+  background-color: #304156;
+  border-right: none;
   display: flex;
   flex-direction: column;
 }
 
-.app-header {
-  background-color: #409eff;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-  height: 60px;
-  flex-shrink: 0;
+.aside-header {
+  background-color: #2b3a4d;
+  padding: 15px 20px;
+  border-bottom: 1px solid #3a4b5c;
 }
 
 .app-title {
@@ -146,8 +160,21 @@ html, body {
   align-items: center;
   gap: 10px;
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 500;
+  color: #fff;
+}
+
+.app-header {
+  background-color: #fff;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 20px;
+  height: 60px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #e6e6e6;
 }
 
 .header-right {
@@ -161,22 +188,37 @@ html, body {
   align-items: center;
   gap: 5px;
   font-size: 14px;
-}
-
-.app-aside {
-  background-color: #f5f5f5;
-  border-right: 1px solid #e6e6e6;
-  flex-shrink: 0;
+  color: #606266;
 }
 
 .app-main {
-  background-color: #fff;
+  background-color: #f0f2f5;
   padding: 20px;
   overflow-y: auto;
 }
 
 .el-menu-vertical {
   border-right: none;
-  height: 100%;
+  background-color: #304156;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.el-menu-vertical .el-menu-item {
+  color: #bfcbd9;
+}
+
+.el-menu-vertical .el-menu-item:hover {
+  background-color: #263445;
+  color: #fff;
+}
+
+.el-menu-vertical .el-menu-item.is-active {
+  background-color: #409eff;
+  color: #fff;
+}
+
+.el-menu-vertical .el-menu-item .el-icon {
+  color: inherit;
 }
 </style>
