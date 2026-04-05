@@ -54,11 +54,14 @@ class TaskExecutionResponse(BaseModel):
     def serialize_datetime(self, dt: Optional[datetime]) -> Optional[str]:
         if dt is None:
             return None
-        # If datetime is naive, assume it's UTC and convert to target timezone
+        # If datetime is naive, assume it's in the configured timezone (not UTC)
+        # because all times are stored with the configured timezone
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        # Convert to configured timezone (East 8)
-        return dt.astimezone(ZoneInfo(settings.TIMEZONE)).isoformat()
+            dt = dt.replace(tzinfo=ZoneInfo(settings.TIMEZONE))
+        # If datetime has timezone info, convert to target timezone
+        else:
+            dt = dt.astimezone(ZoneInfo(settings.TIMEZONE))
+        return dt.isoformat()
 
     class Config:
         from_attributes = True
