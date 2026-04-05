@@ -47,18 +47,30 @@
         <el-container>
           <el-header class="app-header">
             <div class="header-right">
-              <div class="user-info" @click="handleUserClick">
-                <div class="user-avatar">
-                  <el-icon><User /></el-icon>
+              <el-dropdown trigger="click" @command="handleCommand">
+                <div class="user-info">
+                  <div class="user-avatar">
+                    <el-icon><User /></el-icon>
+                  </div>
+                  <div class="user-details">
+                    <span class="user-name">{{ authStore.user?.username }}</span>
+                    <span class="user-role">{{ authStore.user?.is_superuser ? '管理员' : '普通用户' }}</span>
+                  </div>
+                  <el-icon class="dropdown-icon"><ArrowDown /></el-icon>
                 </div>
-                <div class="user-details">
-                  <span class="user-name">{{ authStore.user?.username }}</span>
-                  <span class="user-role">{{ authStore.user?.is_superuser ? '管理员' : '普通用户' }}</span>
-                </div>
-              </div>
-              <el-button type="danger" size="small" @click="handleLogout">
-                退出
-              </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="profile">
+                      <el-icon><User /></el-icon>
+                      个人信息
+                    </el-dropdown-item>
+                    <el-dropdown-item divided command="logout">
+                      <el-icon><Switch /></el-icon>
+                      退出登录
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
           </el-header>
           <el-main class="app-main">
@@ -74,6 +86,7 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
+import { ArrowDown, Switch } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/store/auth'
 
 const route = useRoute()
@@ -82,10 +95,13 @@ const authStore = useAuthStore()
 
 const activeMenu = computed(() => route.path)
 
-// Handle user info click
-const handleUserClick = () => {
-  // 可以添加用户信息下拉菜单或跳转到用户详情页
-  ElMessage.info('用户信息功能开发中')
+// Handle dropdown menu commands
+const handleCommand = async (command: string) => {
+  if (command === 'logout') {
+    await handleLogout()
+  } else if (command === 'profile') {
+    ElMessage.info('个人信息功能开发中')
+  }
 }
 
 // Handle logout
@@ -248,6 +264,16 @@ html, body {
   font-size: 12px;
   color: #909399;
   line-height: 1.2;
+}
+
+.dropdown-icon {
+  font-size: 14px;
+  color: #909399;
+  transition: transform 0.3s ease;
+}
+
+.user-info:hover .dropdown-icon {
+  transform: rotate(180deg);
 }
 
 .app-main {
