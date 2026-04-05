@@ -179,7 +179,8 @@ const formatDate = (dateStr: string) => {
 
 const fetchPythonEnvironments = async () => {
   try {
-    pythonEnvironments.value = await pythonEnvironmentsApi.getAllEnvironments()
+    const response = await pythonEnvironmentsApi.getAllEnvironments()
+    pythonEnvironments.value = response.items
   } catch (error) {
     console.error('Failed to fetch Python environments:', error)
   }
