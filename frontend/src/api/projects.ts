@@ -34,7 +34,13 @@ export interface PaginatedProjects {
 }
 
 export const projectsApi = {
-  list: (params?: { skip?: number; limit?: number }) =>
+  list: (params?: {
+    skip?: number;
+    limit?: number;
+    search?: string;
+    date_from?: string;
+    date_to?: string;
+  }) =>
     api.get<PaginatedProjects>('/projects/', { params }),
 
   getActive: () =>

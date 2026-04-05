@@ -8,6 +8,45 @@
       </el-button>
     </div>
 
+    <div class="filter-bar">
+      <el-input
+        v-model="searchKeyword"
+        placeholder="搜索爬虫名称或命令"
+        clearable
+        style="width: 300px"
+        @input="handleSearch"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+      <el-select
+        v-model="filterProjectId"
+        placeholder="筛选项目"
+        clearable
+        style="width: 200px"
+        @change="handleSearch"
+      >
+        <el-option
+          v-for="project in projects"
+          :key="project.id"
+          :label="project.name"
+          :value="project.id"
+        />
+      </el-select>
+      <el-date-picker
+        v-model="dateRange"
+        type="daterange"
+        range-separator="至"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        value-format="YYYY-MM-DD"
+        @change="handleSearch"
+        clearable
+      />
+      <el-button @click="resetFilters">重置</el-button>
+    </div>
+
     <div class="table-container">
       <el-table :data="crawlers" v-loading="store.loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
@@ -134,7 +173,7 @@ import { ElMessage } from 'element-plus'
 import { useAppStore } from '@/store'
 import { crawlersApi, type Crawler, type CrawlerCreate, type CrawlerUpdate } from '@/api/crawlers'
 import { projectsApi, type Project } from '@/api/projects'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const store = useAppStore()
@@ -148,6 +187,11 @@ const crawlers = ref<Crawler[]>([])
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+
+// Filter states
+const searchKeyword = ref('')
+const filterProjectId = ref<number | undefined>(undefined)
+const dateRange = ref<[string, string] | null>(null)
 
 const form = reactive<CrawlerCreate & { id?: number }>({
   name: '',
@@ -245,12 +289,39 @@ const executeCrawler = async (crawler: Crawler) => {
 }
 
 const fetchCrawlers = async () => {
-  const response = await crawlersApi.list({
+  const params: any = {
     skip: (currentPage.value - 1) * pageSize.value,
     limit: pageSize.value
-  })
+  }
+
+  // Add filters if present
+  if (searchKeyword.value) {
+    params.search = searchKeyword.value
+  }
+  if (filterProjectId.value) {
+    params.project_id = filterProjectId.value
+  }
+  if (dateRange.value && dateRange.value.length === 2) {
+    params.date_from = dateRange.value[0]
+    params.date_to = dateRange.value[1]
+  }
+
+  const response = await crawlersApi.list(params)
   crawlers.value = response.items
   total.value = response.total
+}
+
+const handleSearch = () => {
+  currentPage.value = 1
+  fetchCrawlers()
+}
+
+const resetFilters = () => {
+  searchKeyword.value = ''
+  filterProjectId.value = undefined
+  dateRange.value = null
+  currentPage.value = 1
+  fetchCrawlers()
 }
 
 const handleSizeChange = (newSize: number) => {
@@ -265,6 +336,7 @@ const handleCurrentChange = (newPage: number) => {
 }
 
 onMounted(() => {
+  fetchProjects()
   fetchCrawlers()
 })
 </script>
@@ -285,6 +357,13 @@ onMounted(() => {
 
 .page-header h2 {
   margin: 0;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: center;
 }
 
 :deep(.el-table) {

@@ -45,7 +45,14 @@ export interface PaginatedCrawlers {
 }
 
 export const crawlersApi = {
-  list: (params?: { skip?: number; limit?: number }) =>
+  list: (params?: {
+    skip?: number;
+    limit?: number;
+    search?: string;
+    date_from?: string;
+    date_to?: string;
+    project_id?: number;
+  }) =>
     api.get<PaginatedCrawlers>('/crawlers/', { params }),
 
   get: (id: number) =>

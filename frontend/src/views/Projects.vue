@@ -8,6 +8,31 @@
       </el-button>
     </div>
 
+    <div class="filter-bar">
+      <el-input
+        v-model="searchKeyword"
+        placeholder="搜索项目名称或描述"
+        clearable
+        style="width: 300px"
+        @input="handleSearch"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+      <el-date-picker
+        v-model="dateRange"
+        type="daterange"
+        range-separator="至"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        value-format="YYYY-MM-DD"
+        @change="handleSearch"
+        clearable
+      />
+      <el-button @click="resetFilters">重置</el-button>
+    </div>
+
     <div class="table-container">
       <el-table :data="projects" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
@@ -141,7 +166,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectsApi, type Project, type ProjectCreate, type ProjectUpdate } from '@/api/projects'
 import { pythonEnvironmentsApi, type PythonEnvironmentListItem } from '@/api/python_environments'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -153,6 +178,10 @@ const projects = ref<Project[]>([])
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+
+// Filter states
+const searchKeyword = ref('')
+const dateRange = ref<[string, string] | null>(null)
 
 const form = reactive<ProjectCreate & { id?: number }>({
   name: '',
@@ -243,10 +272,21 @@ const deleteProject = async (id: number) => {
 const fetchProjects = async () => {
   loading.value = true
   try {
-    const response = await projectsApi.list({
+    const params: any = {
       skip: (currentPage.value - 1) * pageSize.value,
       limit: pageSize.value
-    })
+    }
+
+    // Add filters if present
+    if (searchKeyword.value) {
+      params.search = searchKeyword.value
+    }
+    if (dateRange.value && dateRange.value.length === 2) {
+      params.date_from = dateRange.value[0]
+      params.date_to = dateRange.value[1]
+    }
+
+    const response = await projectsApi.list(params)
     projects.value = response.items
     total.value = response.total
   } catch (error) {
@@ -254,6 +294,18 @@ const fetchProjects = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const handleSearch = () => {
+  currentPage.value = 1
+  fetchProjects()
+}
+
+const resetFilters = () => {
+  searchKeyword.value = ''
+  dateRange.value = null
+  currentPage.value = 1
+  fetchProjects()
 }
 
 const handleSizeChange = (newSize: number) => {
@@ -288,6 +340,13 @@ onMounted(() => {
 
 .page-header h2 {
   margin: 0;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: center;
 }
 
 :deep(.el-table) {

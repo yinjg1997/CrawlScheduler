@@ -1,7 +1,8 @@
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete, func, or_, and_
 from sqlalchemy.orm import selectinload
+from datetime import datetime
 from ..models import Project
 from ..schemas.project import ProjectCreate, ProjectUpdate
 
@@ -10,22 +11,60 @@ class ProjectService:
     """Service for managing project operations"""
 
     @staticmethod
-    async def get_all(db: AsyncSession, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
-        """Get all projects with crawler count"""
-        # Get total count
-        count_result = await db.execute(select(func.count()).select_from(Project))
+    async def get_all(
+        db: AsyncSession,
+        skip: int = 0,
+        limit: int = 100,
+        search: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Get all projects with crawler count and filtering"""
+        # Build base query
+        query = select(Project)
+
+        # Apply search filter (name or description)
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.where(
+                or_(
+                    Project.name.like(search_pattern),
+                    Project.description.like(search_pattern)
+                )
+            )
+
+        # Apply date range filter
+        conditions = []
+        if date_from:
+            try:
+                date_from_dt = datetime.fromisoformat(date_from)
+                conditions.append(Project.created_at >= date_from_dt)
+            except ValueError:
+                pass
+
+        if date_to:
+            try:
+                date_to_dt = datetime.fromisoformat(date_to)
+                # Add one day to include the end date
+                from datetime import timedelta
+                date_to_dt = date_to_dt + timedelta(days=1)
+                conditions.append(Project.created_at < date_to_dt)
+            except ValueError:
+                pass
+
+        if conditions:
+            query = query.where(and_(*conditions))
+
+        # Get total count with filters
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await db.execute(count_query)
         total = count_result.scalar() or 0
 
         # Get paginated results with crawler count
         from ..models import Crawler
+        query = query.outerjoin(Crawler).options(selectinload(Project.crawlers)).group_by(Project.id)
         result = await db.execute(
-            select(Project)
-            .outerjoin(Crawler)
-            .options(selectinload(Project.crawlers))
-            .group_by(Project.id)
-            .offset(skip)
-            .limit(limit)
-            .order_by(Project.created_at.desc())
+            query.offset(skip).limit(limit).order_by(Project.created_at.desc())
         )
         items = list(result.scalars().all())
 

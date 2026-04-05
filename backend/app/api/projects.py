@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 
 from ..database import get_db
 from ..schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
@@ -26,10 +26,20 @@ async def create_project(
 async def get_projects(
     skip: int = 0,
     limit: int = 100,
+    search: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all projects"""
-    return await ProjectService.get_all(db, skip=skip, limit=limit)
+    """Get all projects with filtering"""
+    return await ProjectService.get_all(
+        db,
+        skip=skip,
+        limit=limit,
+        search=search,
+        date_from=date_from,
+        date_to=date_to
+    )
 
 
 @router.get("/active", response_model=List[ProjectResponse], dependencies=[Depends(get_current_active_user)])

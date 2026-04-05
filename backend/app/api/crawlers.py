@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 import os
 
 from ..database import get_db
@@ -30,10 +30,22 @@ async def create_crawler(
 async def get_crawlers(
     skip: int = 0,
     limit: int = 100,
+    search: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    project_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all crawlers"""
-    return await CrawlerService.get_all(db, skip=skip, limit=limit)
+    """Get all crawlers with filtering"""
+    return await CrawlerService.get_all(
+        db,
+        skip=skip,
+        limit=limit,
+        search=search,
+        date_from=date_from,
+        date_to=date_to,
+        project_id=project_id
+    )
 
 
 @router.get("/{crawler_id}", response_model=CrawlerResponse, dependencies=[Depends(get_current_active_user)])
