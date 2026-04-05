@@ -60,11 +60,7 @@
                 </div>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item command="profile">
-                      <el-icon><User /></el-icon>
-                      个人信息
-                    </el-dropdown-item>
-                    <el-dropdown-item divided command="logout">
+                    <el-dropdown-item command="logout">
                       <el-icon><Switch /></el-icon>
                       退出登录
                     </el-dropdown-item>
@@ -99,8 +95,6 @@ const activeMenu = computed(() => route.path)
 const handleCommand = async (command: string) => {
   if (command === 'logout') {
     await handleLogout()
-  } else if (command === 'profile') {
-    ElMessage.info('个人信息功能开发中')
   }
 }
 
