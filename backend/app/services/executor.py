@@ -88,38 +88,6 @@ class TaskExecutor:
                     # Wrap command with custom python interpreter
                     exec_command = f'{python_executable} -m {crawler.command}'
 
-            # Create log file with fixed name for WebSocket streaming
-            log_file_path = settings.LOGS_DIR / f"task_{task_id}.log"
-            task.log_file_path = str(log_file_path)
-            await executor_db.commit()
-
-            # Update task status to running
-            task = await TaskService.update_status(executor_db, task_id, "running")
-            await TaskExecutor._broadcast_status_update(task_id, task.status)
-
-        try:
-            # Prepare working directory
-            work_dir = Path(crawler.working_directory)
-            work_dir.mkdir(parents=True, exist_ok=True)
-
-            # Build execution command with custom Python interpreter if specified
-            exec_command = crawler.command
-            if crawler.python_executable:
-                import re
-                # Check if command already starts with python
-                if re.match(r'^python3?\s+', crawler.command, re.IGNORECASE):
-                    # Replace python with custom interpreter
-                    exec_command = re.sub(
-                        r'^python3?\s+',
-                        f'{crawler.python_executable} ',
-                        crawler.command,
-                        count=1,
-                        flags=re.IGNORECASE
-                    )
-                else:
-                    # Wrap command with custom python interpreter
-                    exec_command = f'{crawler.python_executable} -m {crawler.command}'
-
             # Execute command with unbuffered output for real-time logging
             # Set PYTHONUNBUFFERED=1 to disable Python output buffering
             env = os.environ.copy()
