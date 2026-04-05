@@ -158,11 +158,13 @@ html, body {
 .app-title {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   margin: 0;
   font-size: 18px;
   font-weight: 500;
   color: #fff;
+  text-align: center;
 }
 
 .app-header {
