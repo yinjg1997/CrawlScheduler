@@ -20,12 +20,6 @@ async def create_default_users():
             "email": "admin@crwlscheduler.com",
             "password": "admin123",
             "is_superuser": True  # admin为管理员
-        },
-        {
-            "username": "user",
-            "email": "user@crwlscheduler.com",
-            "password": "user123",
-            "is_superuser": False
         }
     ]
 
