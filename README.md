@@ -24,70 +24,14 @@
 - JWT + Bcrypt - 用户认证和密码加密
 - PostgreSQL - 生产数据库（开发使用 SQLite）
 
-### 前端
-- Vue 3 + TypeScript
-- Vite
-- Element Plus
-- Vue Router - 路由守卫
-- Pinia - 状态管理
-- Axios - HTTP 请求拦截器
 
-## 项目结构
-
-```
-crawlscheduler/
-├── backend/           # FastAPI 后端
-│   ├── app/
-│   │   ├── api/     # API 路由
-│   │   │   ├── auth.py          # 认证端点
-│   │   │   ├── users.py         # 用户管理（仅管理员）
-│   │   │   ├── crawlers.py     # 爬虫管理
-│   │   │   ├── tasks.py        # 任务管理
-│   │   │   ├── schedules.py    # 定时任务
-│   │   │   └── ...
-│   │   ├── models/  # 数据模型
-│   │   │   └── user.py         # 用户模型
-│   │   ├── schemas/ # Pydantic 模型
-│   │   │   └── user.py         # 用户 Schema
-│   │   ├── services/ # 业务逻辑
-│   │   │   └── user_service.py # 用户服务
-│   │   ├── auth.py   # 认证依赖
-│   │   ├── security.py # 安全工具（JWT、密码）
-│   │   └── ...
-│   ├── alembic/      # 数据库迁移
-│   └── requirements.txt
-├── frontend/          # Vue 3 前端
-│   └── src/
-│       ├── api/      # API 客户端
-│       │   ├── auth.ts         # 认证 API
-│       │   ├── users.ts        # 用户管理 API
-│       │   └── client.ts       # HTTP 客户端
-│       ├── store/    # Pinia 状态管理
-│       │   ├── auth.ts         # 认证状态
-│       │   └── index.ts       # 应用状态
-│       ├── views/    # 页面组件
-│       │   ├── Login.vue       # 登录页面
-│       │   ├── Users.vue       # 用户管理（仅管理员）
-│       │   └── ...
-│       ├── router/   # 路由配置
-│       │   └── index.ts       # 路由守卫
-│       └── ...
-└── data/             # 运行时数据
-```
 
 ## 快速开始
-
-### 环境要求
-
-- Python 3.10+
-- Node.js 16+
-- npm 或 yarn
 
 ### 后端
 
 ```bash
 cd backend
-python -m venv venv
 pip install -r requirements.txt
 alembic upgrade head
 uvicorn app.main:app --reload
@@ -317,22 +261,3 @@ async def get_admin_data():
 </el-menu-item>
 ```
 
-## 安全建议
-
-1. **生产环境必须修改 SECRET_KEY**
-2. **使用 HTTPS** 部署到生产环境
-3. **定期更新依赖** 保持系统安全
-4. **限制数据库访问** 使用强密码和访问控制
-5. **定期备份数据** 防止数据丢失
-
-## 许可证
-
-MIT License
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 联系方式
-
-如有问题，请提交 Issue。
