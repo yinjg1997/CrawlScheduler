@@ -1,22 +1,27 @@
 import asyncio
 import subprocess
 import os
+import platform
+import re
+import signal
 from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
-from typing import Optional, Dict, Set
+from typing import Optional, Dict, Set, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import WebSocket
+import psutil
 from .task_service import TaskService
 from .crawler_service import CrawlerService
 from ..config import settings
 
 
 class TaskExecutor:
-    """Service for executing crawler tasks"""
+    """Service for executing crawler tasks with cross-platform support"""
 
-    # Track running tasks: {task_id: subprocess.Popen}
-    _running_tasks: Dict[int, subprocess.Popen] = {}
+    # Track running tasks: {task_id: process_info}
+    # process_info: {'process': asyncio.subprocess.Process, 'psutil': psutil.Process}
+    _running_tasks: Dict[int, Dict] = {}
 
     # Track WebSocket connections: {task_id: Set[WebSocket]}
     _ws_connections: Dict[int, Set[WebSocket]] = {}
@@ -70,55 +75,32 @@ class TaskExecutor:
             work_dir = Path(working_directory)
             work_dir.mkdir(parents=True, exist_ok=True)
 
-            # Build execution command with custom Python interpreter if specified
-            exec_command = crawler.command
-            if python_executable:
-                import re
-                # Check if command already starts with python
-                if re.match(r'^python3?\s+', crawler.command, re.IGNORECASE):
-                    # Replace python with custom interpreter
-                    exec_command = re.sub(
-                        r'^python3?\s+',
-                        f'{python_executable} ',
-                        crawler.command,
-                        count=1,
-                        flags=re.IGNORECASE
-                    )
-                else:
-                    # Wrap command with custom python interpreter
-                    exec_command = f'{python_executable} -m {crawler.command}'
+            # Build cross-platform execution command
+            exec_command, use_shell = TaskExecutor._build_exec_command(crawler.command, python_executable)
 
-            # Execute command with unbuffered output for real-time logging
-            # Set PYTHONUNBUFFERED=1 to disable Python output buffering
-            env = os.environ.copy()
-            env['PYTHONUNBUFFERED'] = '1'
+            # Prepare environment variables
+            env = TaskExecutor._prepare_environment()
 
-            # Also add -u flag to Python commands for unbuffered output
-            if 'python' in exec_command.lower():
-                # Check if -u flag is already present
-                if '-u' not in exec_command:
-                    # Insert -u after python command
-                    import re
-                    exec_command = re.sub(
-                        r'(python3?\s+)',
-                        r'\1-u ',
-                        exec_command,
-                        count=1,
-                        flags=re.IGNORECASE
-                    )
-
-            with open(log_file_path, 'w', encoding='utf-8', buffering=1) as log_file:  # Line buffering
-                process = await asyncio.create_subprocess_shell(
+            # Create log file with appropriate mode
+            with open(log_file_path, 'w', encoding='utf-8', buffering=1) as log_file:
+                # Execute command - use create_subprocess_exec for better cross-platform support
+                process = await TaskExecutor._execute_command(
                     exec_command,
-                    stdout=log_file,
-                    stderr=subprocess.STDOUT,
-                    cwd=str(work_dir),
-                    shell=True,
-                    env=env
+                    log_file,
+                    str(work_dir),
+                    env,
+                    use_shell
                 )
 
-                # Track running process
-                TaskExecutor._running_tasks[task_id] = process
+                # Get psutil process for enhanced control
+                psutil_proc = psutil.Process(process.pid)
+
+                # Track running process with both asyncio and psutil handles
+                TaskExecutor._running_tasks[task_id] = {
+                    'process': process,
+                    'psutil': psutil_proc,
+                    'task': task
+                }
 
                 # Wait for process to complete
                 return_code = await process.wait()
@@ -154,21 +136,203 @@ class TaskExecutor:
                 del TaskExecutor._running_tasks[task_id]
 
     @staticmethod
+    def _build_exec_command(command: str, python_executable: Optional[str] = None) -> Tuple[str, bool]:
+        """
+        Build cross-platform execution command
+        Returns (command, use_shell)
+        """
+        # Build execution command with custom Python interpreter if specified
+        exec_command = command
+        use_shell = False
+
+        if python_executable:
+            # Check if command already starts with python
+            if re.match(r'^python3?\s+', command, re.IGNORECASE):
+                # Replace python with custom interpreter
+                exec_command = re.sub(
+                    r'^python3?\s+',
+                    f'{python_executable} ',
+                    command,
+                    count=1,
+                    flags=re.IGNORECASE
+                )
+            else:
+                # Wrap command with custom python interpreter
+                exec_command = f'{python_executable} -m {command}'
+
+        # Determine if we need to use shell
+        current_platform = platform.system()
+        if current_platform == "Windows":
+            # Windows might need shell for complex commands
+            use_shell = any(char in exec_command for char in ['|', '&', '>', '<', '&&', '||'])
+        elif current_platform == "Darwin" or current_platform == "Linux":
+            # Unix-like systems generally don't need shell for simple commands
+            use_shell = any(char in exec_command for char in ['|', '&', '>', '<', '&&', '||', ';'])
+
+        return exec_command, use_shell
+
+    @staticmethod
+    def _prepare_environment() -> Dict[str, str]:
+        """Prepare cross-platform environment variables"""
+        env = os.environ.copy()
+
+        # Set PYTHONUNBUFFERED for real-time logging
+        env['PYTHONUNBUFFERED'] = '1'
+
+        # Platform-specific environment settings
+        current_platform = platform.system()
+        if current_platform == "Windows":
+            # Windows-specific settings
+            env['PYTHONIOENCODING'] = 'utf-8'
+        elif current_platform == "Darwin":
+            # macOS-specific settings if needed
+            pass
+        elif current_platform == "Linux":
+            # Linux-specific settings if needed
+            pass
+
+        return env
+
+    @staticmethod
+    async def _execute_command(
+        command: str,
+        log_file,
+        working_dir: str,
+        env: Dict[str, str],
+        use_shell: bool = False
+    ) -> asyncio.subprocess.Process:
+        """Execute command with cross-platform support"""
+        if use_shell:
+            # Use shell for complex commands
+            process = await asyncio.create_subprocess_shell(
+                command,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                cwd=working_dir,
+                shell=True,
+                env=env
+            )
+        else:
+            # Parse command into components for direct execution
+            # Simple parsing by splitting on spaces (might need improvement for complex cases)
+            if platform.system() == "Windows":
+                # Windows might handle paths differently
+                command_parts = [command]  # Fallback to shell
+                process = await asyncio.create_subprocess_shell(
+                    command,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    cwd=working_dir,
+                    shell=True,
+                    env=env
+                )
+            else:
+                # Unix-like systems - try to parse command
+                # This is a simple parser, might need improvement for complex cases
+                command_parts = []
+                current_part = ""
+                in_quote = False
+                quote_char = None
+
+                for char in command:
+                    if char in ['"', "'"] and (not in_quote or quote_char == char):
+                        in_quote = not in_quote
+                        quote_char = char if in_quote else None
+                    elif char.isspace() and not in_quote:
+                        if current_part:
+                            command_parts.append(current_part)
+                            current_part = ""
+                    else:
+                        current_part += char
+
+                if current_part:
+                    command_parts.append(current_part)
+
+                if not command_parts:
+                    # Fallback to shell if parsing fails
+                    process = await asyncio.create_subprocess_shell(
+                        command,
+                        stdout=log_file,
+                        stderr=subprocess.STDOUT,
+                        cwd=working_dir,
+                        shell=True,
+                        env=env
+                    )
+                else:
+                    # Use parsed command
+                    process = await asyncio.create_subprocess_exec(
+                        *command_parts,
+                        stdout=log_file,
+                        stderr=subprocess.STDOUT,
+                        cwd=working_dir,
+                        env=env
+                    )
+
+        return process
+
+    @staticmethod
     async def cancel_task(task_id: int) -> bool:
-        """Cancel a running task"""
+        """Cancel a running task with cross-platform support"""
         if task_id not in TaskExecutor._running_tasks:
             return False
 
-        process = TaskExecutor._running_tasks[task_id]
-        process.terminate()
+        task_info = TaskExecutor._running_tasks[task_id]
+        process = task_info['process']
+        psutil_proc = task_info['psutil']
 
         try:
-            await asyncio.wait_for(process.wait(), timeout=5)
-        except asyncio.TimeoutError:
-            process.kill()
-            await process.wait()
+            # Use psutil for cross-platform process termination
+            if psutil_proc.is_running():
+                # Try graceful termination first
+                psutil_proc.terminate()
 
-        return True
+                try:
+                    # Wait up to 5 seconds for process to terminate
+                    await asyncio.wait_for(process.wait(), timeout=5)
+                except asyncio.TimeoutError:
+                    # Force kill if graceful termination fails
+                    TaskExecutor._force_terminate(psutil_proc, process)
+
+            return True
+
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+            # Process already terminated or access denied
+            print(f"Process already terminated or access denied: {e}")
+            return True
+
+        except Exception as e:
+            print(f"Error cancelling task {task_id}: {e}")
+            return False
+
+    @staticmethod
+    def _force_terminate(psutil_proc: psutil.Process, process: asyncio.subprocess.Process) -> None:
+        """Force terminate a process with platform-specific handling"""
+        try:
+            current_platform = platform.system()
+
+            if current_platform == "Windows":
+                # Windows: use kill() method
+                psutil_proc.kill()
+            elif current_platform == "Darwin" or current_platform == "Linux":
+                # Unix-like: try SIGTERM first, then SIGKILL
+                try:
+                    psutil_proc.send_signal(signal.SIGTERM)
+                    # Give it a moment
+                    import time
+                    time.sleep(0.1)
+
+                    if psutil_proc.is_running():
+                        psutil_proc.send_signal(signal.SIGKILL)
+                except psutil.AccessDenied:
+                    # If we can't send signals, try kill()
+                    psutil_proc.kill()
+
+            # Ensure asyncio process is cleaned up
+            if process.returncode is None:
+                process.kill()
+
+        except Exception as e:
+            print(f"Error in force termination: {e}")
 
     @staticmethod
     def add_ws_connection(task_id: int, websocket: WebSocket) -> None:
@@ -241,9 +405,34 @@ class TaskExecutor:
     @staticmethod
     def is_task_running(task_id: int) -> bool:
         """Check if a task is currently running"""
-        return task_id in TaskExecutor._running_tasks
+        if task_id not in TaskExecutor._running_tasks:
+            return False
+
+        task_info = TaskExecutor._running_tasks[task_id]
+        psutil_proc = task_info['psutil']
+
+        try:
+            return psutil_proc.is_running()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            # Process is no longer running
+            return False
 
     @staticmethod
     def get_running_tasks() -> list:
         """Get list of currently running task IDs"""
-        return list(TaskExecutor._running_tasks.keys())
+        running_tasks = []
+
+        for task_id, task_info in list(TaskExecutor._running_tasks.items()):
+            psutil_proc = task_info['psutil']
+
+            try:
+                if psutil_proc.is_running():
+                    running_tasks.append(task_id)
+                else:
+                    # Clean up dead processes
+                    del TaskExecutor._running_tasks[task_id]
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                # Clean up processes that no longer exist
+                del TaskExecutor._running_tasks[task_id]
+
+        return running_tasks
