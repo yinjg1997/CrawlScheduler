@@ -38,10 +38,6 @@
               <el-icon><User /></el-icon>
               <span>用户管理</span>
             </el-menu-item>
-            <el-menu-item index="/python-environments">
-              <el-icon><Setting /></el-icon>
-              <span>Python环境</span>
-            </el-menu-item>
           </el-menu>
         </el-aside>
         <el-container>
@@ -81,7 +77,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import { ArrowDown, Switch } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/store/auth'
 

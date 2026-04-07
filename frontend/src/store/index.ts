@@ -54,7 +54,8 @@ export const useAppStore = defineStore('app', () => {
   const fetchTasks = async () => {
     loading.value = true
     try {
-      tasks.value = await tasksApi.list()
+      const response = await tasksApi.list()
+      tasks.value = response.items
     } catch (error) {
       console.error('Failed to fetch tasks:', error)
     } finally {

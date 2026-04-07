@@ -122,29 +122,14 @@
             创建爬虫时将自动使用此目录
           </el-text>
         </el-form-item>
-        <el-form-item label="默认Python环境" prop="python_executable">
-          <el-select
+        <el-form-item label="默认Python解释器路径" prop="python_executable">
+          <el-input
             v-model="form.python_executable"
-            placeholder="选择Python环境（可选）"
+            placeholder="Python解释器路径（可选）"
             style="width: 100%"
-            filterable
-            clearable
-          >
-            <el-option
-              v-for="env in pythonEnvironments"
-              :key="env.path"
-              :label="`${env.name} - ${env.version}`"
-              :value="env.path"
-            >
-              <div class="env-option">
-                <span>{{ env.name }}</span>
-                <span class="env-version">{{ env.version }}</span>
-                <el-tag v-if="env.is_active" type="success" size="small">当前</el-tag>
-              </div>
-            </el-option>
-          </el-select>
+          />
           <el-text class="hint" size="small" type="info">
-            创建爬虫时将自动使用此Python环境
+            例如：/usr/bin/python3 或 C:\Python39\python.exe
           </el-text>
         </el-form-item>
         <el-form-item label="状态" prop="is_active">
@@ -165,7 +150,6 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectsApi, type Project, type ProjectCreate, type ProjectUpdate } from '@/api/projects'
-import { pythonEnvironmentsApi, type PythonEnvironmentListItem } from '@/api/python_environments'
 import { Plus, Search } from '@element-plus/icons-vue'
 
 const loading = ref(false)
@@ -173,7 +157,6 @@ const dialogVisible = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
 const formRef = ref()
-const pythonEnvironments = ref<PythonEnvironmentListItem[]>([])
 const projects = ref<Project[]>([])
 const currentPage = ref(1)
 const pageSize = ref(20)
@@ -200,14 +183,6 @@ const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
-const fetchPythonEnvironments = async () => {
-  try {
-    const response = await pythonEnvironmentsApi.getAllEnvironments()
-    pythonEnvironments.value = response.items
-  } catch (error) {
-    console.error('Failed to fetch Python environments:', error)
-  }
-}
 
 const showCreateDialog = async () => {
   isEdit.value = false
@@ -219,7 +194,6 @@ const showCreateDialog = async () => {
     is_active: true
   })
 
-  await fetchPythonEnvironments()
   dialogVisible.value = true
 }
 
@@ -227,7 +201,6 @@ const showEditDialog = async (project: Project) => {
   isEdit.value = true
   Object.assign(form, project)
 
-  await fetchPythonEnvironments()
   dialogVisible.value = true
 }
 

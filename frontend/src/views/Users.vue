@@ -246,6 +246,7 @@ const editForm = reactive({
 })
 
 const passwordForm = reactive({
+  old_password: '',
   new_password: '',
   confirm_password: ''
 })
@@ -279,7 +280,7 @@ const passwordRules: FormRules = {
   confirm_password: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },
     {
-      validator: (rule: any, value: string, callback: any) => {
+      validator: (_rule: any, value: string, callback: any) => {
         if (value !== passwordForm.new_password) {
           callback(new Error('两次输入的密码不一致'))
         } else {
@@ -384,6 +385,7 @@ const handleUpdate = async () => {
 // 显示修改密码对话框
 const showChangePasswordDialog = (user: User) => {
   currentUser.value = user
+  passwordForm.old_password = ''
   passwordForm.new_password = ''
   passwordForm.confirm_password = ''
   passwordDialogVisible.value = true

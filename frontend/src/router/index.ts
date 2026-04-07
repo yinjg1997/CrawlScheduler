@@ -50,12 +50,6 @@ const routes: Array<RouteRecordRaw> = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/python-environments',
-    name: 'PythonEnvironments',
-    component: () => import('@/views/PythonEnvironments.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
     path: '/users',
     name: 'Users',
     component: () => import('@/views/Users.vue'),
@@ -69,7 +63,7 @@ const router = createRouter({
 })
 
 // Navigation guard to protect routes
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, _, next) => {
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
   const requiresAuth = to.meta.requiresAuth !== false // Default to true if not specified

@@ -197,7 +197,8 @@ const form = reactive<CrawlerCreate & { id?: number }>({
   name: '',
   description: '',
   command: '',
-  project_id: undefined
+  project_id: undefined,
+  working_directory: ''
 })
 
 const rules = {
