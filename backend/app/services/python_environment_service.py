@@ -3,6 +3,8 @@ from sqlalchemy import select, update, delete, func
 from typing import List, Optional, Dict, Any
 import subprocess
 import shutil
+import os
+import platform
 
 from ..models.python_environment import PythonEnvironment
 from ..schemas.python_environment import PythonEnvironmentCreate, PythonEnvironmentUpdate, PythonEnvironmentListItem, PythonEnvironmentResponse
@@ -84,10 +86,21 @@ class PythonEnvironmentService:
     def get_system_python() -> Optional[dict]:
         """Get system Python information"""
         try:
-            python_path = shutil.which("python3") or shutil.which("python")
+            # Platform-specific Python detection
+            if platform.system() == "Windows":
+                python_path = shutil.which("python") or shutil.which("python3") or shutil.which("py")
+            else:
+                python_path = shutil.which("python3") or shutil.which("python")
+
             if python_path:
+                # Use py launcher on Windows if available
+                if platform.system() == "Windows" and shutil.which("py"):
+                    cmd = ["py", "--version"]
+                else:
+                    cmd = [python_path, "--version"]
+
                 result = subprocess.run(
-                    [python_path, "--version"],
+                    cmd,
                     capture_output=True,
                     text=True,
                     timeout=2  # Reduced timeout from 5 to 2 seconds
@@ -140,18 +153,33 @@ class PythonEnvironmentService:
 
                         env_path = None
                         if len(parts) > 1:
-                            env_path = parts[-1]
+                            env_path = parts[-1].replace('\\', '/')  # Normalize Windows paths
 
-                        # Get Python path first
-                        if env_path:
-                            python_path = f"{env_path}/bin/python"
+                        # Platform-specific Python path construction
+                        if platform.system() == "Windows":
+                            if env_path:
+                                python_path = os.path.join(env_path, "python.exe")
+                            else:
+                                # Default conda envs location on Windows
+                                base_path = os.path.dirname(os.path.dirname(conda_path))
+                                python_path = os.path.join(base_path, "envs", env_name, "python.exe")
                         else:
-                            python_path = f"{conda_path.replace('/bin/conda', '/envs/' + env_name + '/bin/python')}"
+                            if env_path:
+                                python_path = f"{env_path}/bin/python"
+                            else:
+                                python_path = f"{conda_path.replace('/bin/conda', '/envs/' + env_name + '/bin/python')}"
 
-                        # Get Python version by directly calling the Python executable (much faster than conda run)
+                        python_path = python_path.replace('\\', '/')  # Ensure consistent path separators
+
+                        # Get Python version by directly calling the Python executable
                         try:
+                            if platform.system() == "Windows":
+                                version_cmd = [python_path, "--version"]
+                            else:
+                                version_cmd = [python_path, "--version"]
+
                             version_result = subprocess.run(
-                                [python_path, "--version"],
+                                version_cmd,
                                 capture_output=True,
                                 text=True,
                                 timeout=2  # Reduced timeout from 10 to 2 seconds
