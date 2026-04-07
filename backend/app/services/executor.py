@@ -45,6 +45,38 @@ class TaskExecutor:
         # 最终兜底
         return raw.decode('utf-8', errors='replace').rstrip('\n\r')
 
+    @staticmethod
+    def _parse_command(command: str, python_executable: str, working_directory: str) -> list:
+        """解析命令字符串，构建 subprocess.Popen 所需的参数列表
+
+        支持的 command 格式:
+        - "python xxx.py" / "python3 xxx.py"  →  [python_exe, "绝对路径/xxx.py"]
+        - "xxx.py"                            →  [python_exe, "绝对路径/xxx.py"]
+        - "scrapy crawl xxx"                  →  [python_exe, "-m", "scrapy", "crawl", "xxx"]
+        - 其他命令                             →  [python_exe, "-m", "xxx"]
+        """
+        cmd = command.strip()
+        lower = cmd.lower()
+
+        # 去掉 "python xxx" 或 "python3 xxx" 前缀
+        if lower.startswith('python3 '):
+            cmd = cmd[cmd.index(' ') + 1:]
+        elif lower.startswith('python '):
+            cmd = cmd[cmd.index(' ') + 1:]
+
+        # .py 文件：构建绝对路径
+        if cmd.endswith('.py'):
+            if not os.path.isabs(cmd):
+                cmd = os.path.join(working_directory, cmd)
+            return [python_executable, cmd]
+
+        # scrapy crawl xxx 等：用 -m 方式调用
+        parts = cmd.split()
+        if parts:
+            return [python_executable, "-m"] + parts
+
+        return [python_executable, cmd]
+
     # ==================== 状态更新 ====================
 
     @staticmethod
@@ -117,21 +149,10 @@ class TaskExecutor:
             )
             return
 
-        # ---- 第二步：构建脚本绝对路径 ----
-        script_path = command.strip()
-        lower = script_path.lower()
-        # 去掉 "python xxx.py" 中的 python 前缀
-        if lower.startswith('python3 '):
-            script_path = script_path[script_path.index(' ') + 1:]
-        elif lower.startswith('python '):
-            script_path = script_path[script_path.index(' ') + 1:]
+        # ---- 第二步：解析命令，构建执行参数列表 ----
+        cmd_args = TaskExecutor._parse_command(command, python_executable, working_directory)
 
-        # 如果是相对路径，拼接工作目录
-        if not os.path.isabs(script_path):
-            script_path = os.path.join(working_directory, script_path)
-
-        print(f"[执行器] Python: {python_executable}")
-        print(f"[执行器] 脚本: {script_path}")
+        print(f"[执行器] 执行命令: {cmd_args}")
         print(f"[执行器] 工作目录: {working_directory}")
 
         # 更新状态为运行中
@@ -145,7 +166,7 @@ class TaskExecutor:
             # 在线程池中启动子进程（绕过 ProactorEventLoop 限制）
             def _start_process():
                 return subprocess.Popen(
-                    [python_executable, script_path],
+                    cmd_args,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     cwd=working_directory,
