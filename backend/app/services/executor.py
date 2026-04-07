@@ -1,285 +1,205 @@
+"""爬虫任务执行器
+
+通过 subprocess.Popen + 线程池执行爬虫脚本，
+不依赖 asyncio.create_subprocess_exec，兼容所有事件循环类型（Selector/Proactor）。
+"""
+
 import asyncio
-import subprocess
 import os
-import platform
-import signal
+import re
+import subprocess
+import traceback
 from pathlib import Path
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
-from typing import Optional, Dict, Set, Tuple
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import WebSocket
+from typing import Dict, Set
+
 import psutil
+from fastapi import WebSocket
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from .task_service import TaskService
-from .crawler_service import CrawlerService
 from ..config import settings
 
 
 class TaskExecutor:
-    """Service for executing crawler tasks with cross-platform support"""
+    """爬虫任务执行器，负责任务的启动、取消、日志流式传输和状态管理"""
 
-    # Track running tasks: {task_id: process_info}
-    # process_info: {'process': asyncio.subprocess.Process, 'psutil': psutil.Process}
+    # 运行中的任务: {task_id: {'process': Popen, 'psutil': psutil.Process}}
     _running_tasks: Dict[int, Dict] = {}
 
-    # Track WebSocket connections: {task_id: Set[WebSocket]}
+    # WebSocket 连接: {task_id: Set[WebSocket]}
     _ws_connections: Dict[int, Set[WebSocket]] = {}
+
+    # ANSI 转义序列（颜色码等）的正则
+    _ANSI_RE = re.compile(r'\x1b\[[0-9;]*m|\[[\d;]*m')
+
+    @staticmethod
+    def _decode_line(raw: bytes) -> str:
+        """将子进程输出的 bytes 解码为字符串，兼容 UTF-8 和 GBK"""
+        for encoding in ('utf-8', 'gbk', 'gb2312', 'latin-1'):
+            try:
+                text = raw.decode(encoding)
+                # 清除 ANSI 颜色码
+                return TaskExecutor._ANSI_RE.sub('', text).rstrip('\n\r')
+            except (UnicodeDecodeError, LookupError):
+                continue
+        # 最终兜底
+        return raw.decode('utf-8', errors='replace').rstrip('\n\r')
+
+    # ==================== 状态更新 ====================
+
+    @staticmethod
+    async def _update_status(task_id: int, status: str, **kwargs) -> None:
+        """使用独立的数据库会话更新任务状态并广播通知"""
+        from ..database import async_session
+        try:
+            async with async_session() as db:
+                task = await TaskService.update_status(db, task_id, status, **kwargs)
+                await TaskExecutor._broadcast_status_update(task_id, task.status)
+        except Exception as e:
+            print(f"[执行器] 更新任务 {task_id} 状态失败: {e}")
+
+    # ==================== 核心执行逻辑 ====================
 
     @staticmethod
     async def execute(db: AsyncSession, task_id: int) -> None:
-        """Execute a crawler task"""
+        """执行爬虫任务
+
+        流程:
+        1. 从数据库读取任务和爬虫配置
+        2. 构建脚本绝对路径
+        3. 通过线程池启动 subprocess.Popen 子进程
+        4. 在线程池中读取子进程输出并写入日志文件
+        5. 子进程结束后更新任务状态
+        """
         from ..models import TaskExecution, Crawler
         from ..database import async_session
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
 
-        # Use a new session for the executor to avoid conflicts
-        async with async_session() as executor_db:
-            task = await executor_db.get(TaskExecution, task_id)
+        print(f"[执行器] 开始执行任务 {task_id}")
+
+        # ---- 第一步：读取任务配置 ----
+        async with async_session() as session:
+            task = await session.get(TaskExecution, task_id)
             if not task:
-                raise ValueError(f"Task with ID {task_id} not found")
+                print(f"[执行器] 任务 {task_id} 不存在")
+                return
 
-            # Get crawler with project relationship
-            from sqlalchemy import select
-            from sqlalchemy.orm import selectinload
-            result = await executor_db.execute(
+            # 查询爬虫及其关联的项目配置
+            result = await session.execute(
                 select(Crawler)
                 .options(selectinload(Crawler.project))
                 .where(Crawler.id == task.crawler_id)
             )
             crawler = result.scalar_one_or_none()
             if not crawler:
-                raise ValueError(f"Crawler with ID {task.crawler_id} not found")
+                print(f"[执行器] 任务 {task_id} 对应的爬虫不存在")
+                return
+            if not crawler.project:
+                print(f"[执行器] 爬虫 {crawler.id} 未关联项目")
+                return
 
-            # Get working directory and python executable from project
-            working_directory = None
-            python_executable = None
+            # 提取执行所需的配置信息
+            working_directory = crawler.project.working_directory
+            python_executable = crawler.project.python_executable
+            command = crawler.command
+            log_file_path = str(settings.LOGS_DIR / f"task_{task_id}.log")
 
-            if crawler.project:
-                working_directory = crawler.project.working_directory
-                python_executable = crawler.project.python_executable
+            # 保存日志文件路径到数据库
+            task.log_file_path = log_file_path
+            await session.commit()
 
-            if not working_directory:
-                raise ValueError(f"Crawler must be associated with a project that has a working directory")
+        # 校验必要参数
+        if not working_directory or not python_executable:
+            await TaskExecutor._update_status(
+                task_id, "failed",
+                error_message="项目缺少工作目录或 Python 解释器路径"
+            )
+            return
 
-            # Create log file with fixed name for WebSocket streaming
-            log_file_path = settings.LOGS_DIR / f"task_{task_id}.log"
-            task.log_file_path = str(log_file_path)
-            await executor_db.commit()
+        # ---- 第二步：构建脚本绝对路径 ----
+        script_path = command.strip()
+        lower = script_path.lower()
+        # 去掉 "python xxx.py" 中的 python 前缀
+        if lower.startswith('python3 '):
+            script_path = script_path[script_path.index(' ') + 1:]
+        elif lower.startswith('python '):
+            script_path = script_path[script_path.index(' ') + 1:]
 
-            # Update task status to running
-            task = await TaskService.update_status(executor_db, task_id, "running")
-            await TaskExecutor._broadcast_status_update(task_id, task.status)
+        # 如果是相对路径，拼接工作目录
+        if not os.path.isabs(script_path):
+            script_path = os.path.join(working_directory, script_path)
 
+        print(f"[执行器] Python: {python_executable}")
+        print(f"[执行器] 脚本: {script_path}")
+        print(f"[执行器] 工作目录: {working_directory}")
+
+        # 更新状态为运行中
+        await TaskExecutor._update_status(task_id, "running")
+
+        # ---- 第三步：启动子进程并执行 ----
         try:
-            # Prepare working directory
-            work_dir = Path(working_directory)
-            work_dir.mkdir(parents=True, exist_ok=True)
+            os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+            loop = asyncio.get_event_loop()
 
-            # Build cross-platform execution command
-            exec_command, use_shell = TaskExecutor._build_exec_command(crawler.command, python_executable)
-
-            # Prepare environment variables
-            env = TaskExecutor._prepare_environment()
-
-            # Create log file with appropriate mode
-            with open(log_file_path, 'w', encoding='utf-8', buffering=1) as log_file:
-                # Execute command - use create_subprocess_exec for better cross-platform support
-                process = await TaskExecutor._execute_command(
-                    exec_command,
-                    log_file,
-                    str(work_dir),
-                    env,
-                    use_shell
+            # 在线程池中启动子进程（绕过 ProactorEventLoop 限制）
+            def _start_process():
+                return subprocess.Popen(
+                    [python_executable, script_path],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    cwd=working_directory,
                 )
 
-                # Get psutil process for enhanced control
-                psutil_proc = psutil.Process(process.pid)
+            process = await loop.run_in_executor(None, _start_process)
+            psutil_proc = psutil.Process(process.pid)
 
-                # Track running process with both asyncio and psutil handles
-                TaskExecutor._running_tasks[task_id] = {
-                    'process': process,
-                    'psutil': psutil_proc,
-                    'task': task
-                }
+            # 记录运行中的任务
+            TaskExecutor._running_tasks[task_id] = {
+                'process': process,
+                'psutil': psutil_proc,
+            }
 
-                # Wait for process to complete
-                return_code = await process.wait()
+            # 在线程池中读取输出并写入日志文件
+            def _read_output():
+                with open(log_file_path, 'w', encoding='utf-8') as f:
+                    for raw_line in process.stdout:
+                        line = TaskExecutor._decode_line(raw_line)
+                        f.write(line + '\n')
+                        f.flush()
+                return process.wait()
 
-            # Update task status based on exit code
+            return_code = await loop.run_in_executor(None, _read_output)
+
+            # ---- 第四步：更新最终状态 ----
+            print(f"[执行器] 任务 {task_id} 执行完成，返回码: {return_code}")
             status = "success" if return_code == 0 else "failed"
-            task = await TaskService.update_status(
-                executor_db,
-                task_id,
-                status,
+            await TaskExecutor._update_status(
+                task_id, status,
                 exit_code=return_code,
-                error_message=f"Process exited with code {return_code}" if return_code != 0 else None
+                error_message=f"退出码 {return_code}" if return_code != 0 else None
             )
-            await TaskExecutor._broadcast_status_update(task_id, task.status)
 
         except asyncio.CancelledError:
-            # Task was cancelled
-            task = await TaskService.update_status(executor_db, task_id, "cancelled")
-            await TaskExecutor._broadcast_status_update(task_id, task.status)
+            # 任务被取消
+            await TaskExecutor._update_status(task_id, "cancelled")
             raise
         except Exception as e:
-            # Task failed with error
-            task = await TaskService.update_status(
-                executor_db,
-                task_id,
-                "failed",
-                error_message=str(e)
-            )
-            await TaskExecutor._broadcast_status_update(task_id, task.status)
+            # 执行异常
+            print(f"[执行器] 任务 {task_id} 执行异常: {e}")
+            traceback.print_exc()
+            await TaskExecutor._update_status(task_id, "failed", error_message=str(e))
         finally:
-            # Remove from running tasks
-            if task_id in TaskExecutor._running_tasks:
-                del TaskExecutor._running_tasks[task_id]
+            TaskExecutor._running_tasks.pop(task_id, None)
 
-    @staticmethod
-    def _build_exec_command(command: str, python_executable: Optional[str] = None) -> Tuple[str, bool]:
-        """
-        Build cross-platform execution command
-        Returns (command, use_shell)
-        """
-        # Build execution command with custom Python interpreter if specified
-        exec_command = command
-        use_shell = False
-
-        if python_executable:
-            # Check if command already starts with python
-            command_lower = command.lower()
-            if command_lower.startswith('python ') or command_lower.startswith('python3 '):
-                # Find the space after python/python3
-                prefix_end = command_lower.find(' ')
-                # Replace python with custom interpreter
-                exec_command = f'{python_executable} {command[prefix_end + 1:]}'
-            elif command.endswith('.py'):
-                # Command is a Python script file, execute it directly
-                # Use double quotes for Windows path handling
-                exec_command = f'{python_executable} "{command}"'
-            else:
-                # Command might be a module or package, use -m
-                exec_command = f'{python_executable} -m {command}'
-
-        # Determine if we need to use shell
-        current_platform = platform.system()
-        if current_platform == "Windows":
-            # Windows might need shell for complex commands
-            use_shell = any(char in exec_command for char in ['|', '&', '>', '<', '&&', '||'])
-        elif current_platform == "Darwin" or current_platform == "Linux":
-            # Unix-like systems generally don't need shell for simple commands
-            use_shell = any(char in exec_command for char in ['|', '&', '>', '<', '&&', '||', ';'])
-
-        return exec_command, use_shell
-
-    @staticmethod
-    def _prepare_environment() -> Dict[str, str]:
-        """Prepare cross-platform environment variables"""
-        env = os.environ.copy()
-
-        # Set PYTHONUNBUFFERED for real-time logging
-        env['PYTHONUNBUFFERED'] = '1'
-
-        # Platform-specific environment settings
-        current_platform = platform.system()
-        if current_platform == "Windows":
-            # Windows-specific settings
-            env['PYTHONIOENCODING'] = 'utf-8'
-        elif current_platform == "Darwin":
-            # macOS-specific settings if needed
-            pass
-        elif current_platform == "Linux":
-            # Linux-specific settings if needed
-            pass
-
-        return env
-
-    @staticmethod
-    async def _execute_command(
-        command: str,
-        log_file,
-        working_dir: str,
-        env: Dict[str, str],
-        use_shell: bool = False
-    ) -> asyncio.subprocess.Process:
-        """Execute command with cross-platform support"""
-        if use_shell:
-            # Use shell for complex commands
-            process = await asyncio.create_subprocess_shell(
-                command,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                cwd=working_dir,
-                shell=True,
-                env=env
-            )
-        else:
-            # Parse command into components for direct execution
-            # Simple parsing by splitting on spaces (might need improvement for complex cases)
-            if platform.system() == "Windows":
-                # Windows: use shell with proper command formatting
-                # For commands with paths containing spaces, wrap in quotes
-                if '"' in command:
-                    # Command already has quotes, use as-is
-                    cmd_to_run = command
-                else:
-                    # Quote the entire command for Windows shell
-                    cmd_to_run = f'"{command}"'
-
-                process = await asyncio.create_subprocess_shell(
-                    cmd_to_run,
-                    stdout=log_file,
-                    stderr=subprocess.STDOUT,
-                    cwd=working_dir,
-                    shell=True,
-                    env=env
-                )
-            else:
-                # Unix-like systems - try to parse command
-                # This is a simple parser, might need improvement for complex cases
-                command_parts = []
-                current_part = ""
-                in_quote = False
-                quote_char = None
-
-                for char in command:
-                    if char in ['"', "'"] and (not in_quote or quote_char == char):
-                        in_quote = not in_quote
-                        quote_char = char if in_quote else None
-                    elif char.isspace() and not in_quote:
-                        if current_part:
-                            command_parts.append(current_part)
-                            current_part = ""
-                    else:
-                        current_part += char
-
-                if current_part:
-                    command_parts.append(current_part)
-
-                if not command_parts:
-                    # Fallback to shell if parsing fails
-                    process = await asyncio.create_subprocess_shell(
-                        command,
-                        stdout=log_file,
-                        stderr=subprocess.STDOUT,
-                        cwd=working_dir,
-                        shell=True,
-                        env=env
-                    )
-                else:
-                    # Use parsed command
-                    process = await asyncio.create_subprocess_exec(
-                        *command_parts,
-                        stdout=log_file,
-                        stderr=subprocess.STDOUT,
-                        cwd=working_dir,
-                        env=env
-                    )
-
-        return process
+    # ==================== 任务取消 ====================
 
     @staticmethod
     async def cancel_task(task_id: int) -> bool:
-        """Cancel a running task with cross-platform support"""
+        """取消运行中的任务
+
+        先尝试优雅终止（terminate），等待 5 秒后强制杀死进程。
+        """
         if task_id not in TaskExecutor._running_tasks:
             return False
 
@@ -288,158 +208,131 @@ class TaskExecutor:
         psutil_proc = task_info['psutil']
 
         try:
-            # Use psutil for cross-platform process termination
             if psutil_proc.is_running():
-                # Try graceful termination first
+                # 优雅终止
                 psutil_proc.terminate()
-
                 try:
-                    # Wait up to 5 seconds for process to terminate
-                    await asyncio.wait_for(process.wait(), timeout=5)
+                    loop = asyncio.get_event_loop()
+                    await asyncio.wait_for(
+                        loop.run_in_executor(None, process.wait),
+                        timeout=5
+                    )
                 except asyncio.TimeoutError:
-                    # Force kill if graceful termination fails
-                    TaskExecutor._force_terminate(psutil_proc, process)
-
+                    # 超时后强制杀死
+                    try:
+                        psutil_proc.kill()
+                    except Exception:
+                        pass
+                    try:
+                        process.kill()
+                    except Exception:
+                        pass
             return True
-
-        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-            # Process already terminated or access denied
-            print(f"Process already terminated or access denied: {e}")
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            # 进程已结束或无权限
             return True
-
         except Exception as e:
-            print(f"Error cancelling task {task_id}: {e}")
+            print(f"[执行器] 取消任务 {task_id} 失败: {e}")
             return False
 
-    @staticmethod
-    def _force_terminate(psutil_proc: psutil.Process, process: asyncio.subprocess.Process) -> None:
-        """Force terminate a process with platform-specific handling"""
-        try:
-            current_platform = platform.system()
-
-            if current_platform == "Windows":
-                # Windows: use kill() method
-                psutil_proc.kill()
-            elif current_platform == "Darwin" or current_platform == "Linux":
-                # Unix-like: try SIGTERM first, then SIGKILL
-                try:
-                    psutil_proc.send_signal(signal.SIGTERM)
-                    # Give it a moment
-                    import time
-                    time.sleep(0.1)
-
-                    if psutil_proc.is_running():
-                        psutil_proc.send_signal(signal.SIGKILL)
-                except psutil.AccessDenied:
-                    # If we can't send signals, try kill()
-                    psutil_proc.kill()
-
-            # Ensure asyncio process is cleaned up
-            if process.returncode is None:
-                process.kill()
-
-        except Exception as e:
-            print(f"Error in force termination: {e}")
+    # ==================== WebSocket 管理 ====================
 
     @staticmethod
     def add_ws_connection(task_id: int, websocket: WebSocket) -> None:
-        """Add a WebSocket connection for a task"""
+        """添加 WebSocket 连接"""
         if task_id not in TaskExecutor._ws_connections:
             TaskExecutor._ws_connections[task_id] = set()
         TaskExecutor._ws_connections[task_id].add(websocket)
 
     @staticmethod
     def remove_ws_connection(task_id: int, websocket: WebSocket) -> None:
-        """Remove a WebSocket connection for a task"""
+        """移除 WebSocket 连接，无连接时清理键"""
         if task_id in TaskExecutor._ws_connections:
             TaskExecutor._ws_connections[task_id].discard(websocket)
             if not TaskExecutor._ws_connections[task_id]:
                 del TaskExecutor._ws_connections[task_id]
 
+    # ==================== 日志流式传输 ====================
+
     @staticmethod
     async def stream_logs(task_id: int, websocket: WebSocket) -> None:
-        """Stream logs to a WebSocket connection"""
-        TaskExecutor.add_ws_connection(task_id, websocket)
+        """通过 WebSocket 实时推送任务日志
 
+        先发送已有的历史日志，再轮询日志文件持续推送新内容，
+        任务结束且日志无变化后发送完成信号。
+        """
+        TaskExecutor.add_ws_connection(task_id, websocket)
         try:
-            # Send buffered logs first
             log_file = Path(settings.LOGS_DIR) / f"task_{task_id}.log"
+
+            # 发送历史日志
             if log_file.exists():
                 with open(log_file, 'r', encoding='utf-8') as f:
                     for line in f:
                         await websocket.send_json({"type": "log", "data": line.rstrip()})
 
-            # Stream new logs as they arrive
+            # 持续轮询新日志
             last_size = log_file.stat().st_size if log_file.exists() else 0
             no_change_count = 0
-            max_no_change = 10  # Stop after 5 seconds of no changes (0.5s * 10)
 
-            while task_id in TaskExecutor._running_tasks or (task_id in TaskExecutor._ws_connections and no_change_count < max_no_change):
+            while task_id in TaskExecutor._running_tasks or (
+                task_id in TaskExecutor._ws_connections and no_change_count < 10
+            ):
                 try:
                     if log_file.exists():
                         current_size = log_file.stat().st_size
                         if current_size > last_size:
                             with open(log_file, 'r', encoding='utf-8') as f:
                                 f.seek(last_size)
-                                new_lines = f.readlines()
-                                for line in new_lines:
+                                for line in f:
                                     await websocket.send_json({"type": "log", "data": line.rstrip()})
                             last_size = current_size
                             no_change_count = 0
                         else:
                             no_change_count += 1
-
                     await asyncio.sleep(0.5)
                 except Exception:
                     break
 
+            # 发送完成信号
             await websocket.send_json({"type": "complete"})
-
         finally:
             TaskExecutor.remove_ws_connection(task_id, websocket)
 
+    # ==================== 状态广播 ====================
+
     @staticmethod
     async def _broadcast_status_update(task_id: int, status: str) -> None:
-        """Broadcast status update to all connected clients"""
+        """向所有已连接的 WebSocket 客户端广播状态变更"""
         if task_id in TaskExecutor._ws_connections:
             for ws in list(TaskExecutor._ws_connections[task_id]):
                 try:
                     await ws.send_json({"type": "status", "task_id": task_id, "status": status})
                 except Exception:
-                    # Connection might be closed
                     TaskExecutor.remove_ws_connection(task_id, ws)
+
+    # ==================== 查询方法 ====================
 
     @staticmethod
     def is_task_running(task_id: int) -> bool:
-        """Check if a task is currently running"""
+        """检查指定任务是否正在运行"""
         if task_id not in TaskExecutor._running_tasks:
             return False
-
-        task_info = TaskExecutor._running_tasks[task_id]
-        psutil_proc = task_info['psutil']
-
         try:
-            return psutil_proc.is_running()
+            return TaskExecutor._running_tasks[task_id]['psutil'].is_running()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
-            # Process is no longer running
             return False
 
     @staticmethod
     def get_running_tasks() -> list:
-        """Get list of currently running task IDs"""
-        running_tasks = []
-
-        for task_id, task_info in list(TaskExecutor._running_tasks.items()):
-            psutil_proc = task_info['psutil']
-
+        """获取所有正在运行的任务 ID 列表，同时清理已结束的任务"""
+        result = []
+        for task_id, info in list(TaskExecutor._running_tasks.items()):
             try:
-                if psutil_proc.is_running():
-                    running_tasks.append(task_id)
+                if info['psutil'].is_running():
+                    result.append(task_id)
                 else:
-                    # Clean up dead processes
                     del TaskExecutor._running_tasks[task_id]
             except (psutil.NoSuchProcess, psutil.AccessDenied):
-                # Clean up processes that no longer exist
                 del TaskExecutor._running_tasks[task_id]
-
-        return running_tasks
+        return result
