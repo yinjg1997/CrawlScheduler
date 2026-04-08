@@ -222,12 +222,12 @@ class TaskExecutor:
             if platform.system() == "Windows":
                 # Windows: use shell with proper command formatting
                 # For commands with paths containing spaces, wrap in quotes
-                if ' ' in exec_command:
+                if '"' in command:
                     # Command already has quotes, use as-is
-                    cmd_to_run = exec_command
+                    cmd_to_run = command
                 else:
                     # Quote the entire command for Windows shell
-                    cmd_to_run = f'"{exec_command}"'
+                    cmd_to_run = f'"{command}"'
 
                 process = await asyncio.create_subprocess_shell(
                     cmd_to_run,
