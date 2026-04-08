@@ -2,7 +2,6 @@ import asyncio
 import subprocess
 import os
 import platform
-import re
 import signal
 from pathlib import Path
 from datetime import datetime, timezone
@@ -147,15 +146,12 @@ class TaskExecutor:
 
         if python_executable:
             # Check if command already starts with python
-            if re.match(r'^python3?\s+', command, re.IGNORECASE):
+            command_lower = command.lower()
+            if command_lower.startswith('python ') or command_lower.startswith('python3 '):
+                # Find the space after python/python3
+                prefix_end = command_lower.find(' ')
                 # Replace python with custom interpreter
-                exec_command = re.sub(
-                    r'^python3?\s+',
-                    f'{python_executable} ',
-                    command,
-                    count=1,
-                    flags=re.IGNORECASE
-                )
+                exec_command = f'{python_executable} {command[prefix_end + 1:]}'
             elif command.endswith('.py'):
                 # Command is a Python script file, execute it directly
                 # Use double quotes for Windows path handling
