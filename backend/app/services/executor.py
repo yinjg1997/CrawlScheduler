@@ -156,8 +156,12 @@ class TaskExecutor:
                     count=1,
                     flags=re.IGNORECASE
                 )
+            elif command.endswith('.py'):
+                # Command is a Python script file, execute it directly
+                # Use double quotes for Windows path handling
+                exec_command = f'{python_executable} "{command}"'
             else:
-                # Wrap command with custom python interpreter
+                # Command might be a module or package, use -m
                 exec_command = f'{python_executable} -m {command}'
 
         # Determine if we need to use shell
@@ -216,10 +220,17 @@ class TaskExecutor:
             # Parse command into components for direct execution
             # Simple parsing by splitting on spaces (might need improvement for complex cases)
             if platform.system() == "Windows":
-                # Windows might handle paths differently
-                command_parts = [command]  # Fallback to shell
+                # Windows: use shell with proper command formatting
+                # For commands with paths containing spaces, wrap in quotes
+                if ' ' in exec_command:
+                    # Command already has quotes, use as-is
+                    cmd_to_run = exec_command
+                else:
+                    # Quote the entire command for Windows shell
+                    cmd_to_run = f'"{exec_command}"'
+
                 process = await asyncio.create_subprocess_shell(
-                    command,
+                    cmd_to_run,
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
                     cwd=working_dir,
