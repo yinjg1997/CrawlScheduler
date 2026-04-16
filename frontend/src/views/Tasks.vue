@@ -177,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '@/store'
@@ -419,8 +419,18 @@ const handleBulkDelete = async () => {
   }
 }
 
+let refreshTimer: ReturnType<typeof setInterval> | null = null
+
 onMounted(async () => {
   await fetchTasks()
+  refreshTimer = setInterval(() => fetchTasks(), 10000)
+})
+
+onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
 })
 </script>
 
