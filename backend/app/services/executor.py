@@ -56,7 +56,7 @@ class TaskExecutor:
         - "python xxx.py" / "python3 xxx.py"  →  [python_exe, "绝对路径/xxx.py"]
         - "xxx.py"                            →  [python_exe, "绝对路径/xxx.py"]
         - "scrapy crawl xxx"                  →  [python_exe, "-m", "scrapy", "crawl", "xxx"]
-        - 其他命令                             →  [python_exe, "-m", "xxx"]
+        - 其他命令 (如 git pull)              →  通过 shell 直接执行
         """
         cmd = command.strip()
         lower = cmd.lower()
@@ -74,11 +74,13 @@ class TaskExecutor:
             return [python_executable, cmd]
 
         # scrapy crawl xxx 等：用 -m 方式调用
-        parts = cmd.split()
-        if parts:
+        if lower.startswith('scrapy '):
+            parts = cmd.split()
             return [python_executable, "-m"] + parts
 
-        return [python_executable, cmd]
+        # 其他命令（git pull、npm install 等）：通过 shell 直接执行
+        import shlex
+        return shlex.split(cmd)
 
     # ==================== 状态更新 ====================
 
