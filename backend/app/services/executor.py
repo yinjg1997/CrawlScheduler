@@ -26,6 +26,9 @@ class TaskExecutor:
     # 运行中的任务: {task_id: {'process': Popen, 'psutil': psutil.Process}}
     _running_tasks: Dict[int, Dict] = {}
 
+    # 已取消的任务 ID 集合，用于防止 execute 完成时覆盖 cancelled 状态
+    _cancelled_tasks: Set[int] = set()
+
     # WebSocket 连接: {task_id: Set[WebSocket]}
     _ws_connections: Dict[int, Set[WebSocket]] = {}
 
@@ -194,12 +197,16 @@ class TaskExecutor:
 
             # ---- 第四步：更新最终状态 ----
             print(f"[执行器] 任务 {task_id} 执行完成，返回码: {return_code}")
-            status = "success" if return_code == 0 else "failed"
-            await TaskExecutor._update_status(
-                task_id, status,
-                exit_code=return_code,
-                error_message=f"退出码 {return_code}" if return_code != 0 else None
-            )
+            if task_id in TaskExecutor._cancelled_tasks:
+                # 任务已被取消，不再覆盖为 failed
+                print(f"[执行器] 任务 {task_id} 已取消，跳过状态更新")
+            else:
+                status = "success" if return_code == 0 else "failed"
+                await TaskExecutor._update_status(
+                    task_id, status,
+                    exit_code=return_code,
+                    error_message=f"退出码 {return_code}" if return_code != 0 else None
+                )
 
         except asyncio.CancelledError:
             # 任务被取消
@@ -212,6 +219,7 @@ class TaskExecutor:
             await TaskExecutor._update_status(task_id, "failed", error_message=str(e))
         finally:
             TaskExecutor._running_tasks.pop(task_id, None)
+            TaskExecutor._cancelled_tasks.discard(task_id)
 
     # ==================== 任务取消 ====================
 
@@ -221,6 +229,8 @@ class TaskExecutor:
 
         先尝试优雅终止（terminate），等待 5 秒后强制杀死进程。
         """
+        TaskExecutor._cancelled_tasks.add(task_id)
+
         if task_id not in TaskExecutor._running_tasks:
             return False
 

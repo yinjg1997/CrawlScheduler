@@ -178,25 +178,48 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '@/store'
 import { tasksApi, type TaskExecution } from '@/api/tasks'
 import { Search, Delete } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 const store = useAppStore()
 
-const activeTab = ref('all')
+// 从 URL query 恢复过滤条件
+const activeTab = ref((route.query.tab as string) || 'all')
 const loading = ref(false)
-const selectedCrawlerId = ref<number | undefined>(undefined)
-const searchKeyword = ref('')
-const dateRange = ref<[string, string] | null>(null)
+const selectedCrawlerId = ref<number | undefined>(
+  route.query.crawler_id ? Number(route.query.crawler_id) : undefined
+)
+const searchKeyword = ref((route.query.search as string) || '')
+const dateRange = ref<[string, string] | null>(
+  route.query.date_from && route.query.date_to
+    ? [route.query.date_from as string, route.query.date_to as string]
+    : null
+)
 const crawlers = ref<{ id: number; name: string }[]>([])
 const selectedTasks = ref<TaskExecution[]>([])
-const currentPage = ref(1)
-const pageSize = ref(20)
+const currentPage = ref(Number(route.query.page) || 1)
+const pageSize = ref(Number(route.query.size) || 20)
 const total = ref(0)
+
+// 将当前过滤条件同步到 URL query
+const syncFiltersToQuery = () => {
+  const query: Record<string, string> = {}
+  if (activeTab.value !== 'all') query.tab = activeTab.value
+  if (selectedCrawlerId.value !== undefined) query.crawler_id = String(selectedCrawlerId.value)
+  if (searchKeyword.value.trim()) query.search = searchKeyword.value.trim()
+  if (dateRange.value) {
+    query.date_from = dateRange.value[0]
+    query.date_to = dateRange.value[1]
+  }
+  if (currentPage.value > 1) query.page = String(currentPage.value)
+  if (pageSize.value !== 20) query.size = String(pageSize.value)
+  router.replace({ path: '/tasks', query })
+}
 
 // Debounced search handler
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -316,6 +339,7 @@ const fetchTasks = async () => {
   await store.fetchCrawlers()
   // Update crawlers list from store
   crawlers.value = store.crawlers.map(c => ({ id: c.id, name: c.name }))
+  syncFiltersToQuery()
 }
 
 const viewTask = (task: TaskExecution) => {
