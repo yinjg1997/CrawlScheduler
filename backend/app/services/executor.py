@@ -41,11 +41,9 @@ class TaskExecutor:
         for encoding in ('utf-8', 'gbk', 'gb2312', 'latin-1'):
             try:
                 text = raw.decode(encoding)
-                # 清除 ANSI 颜色码
                 return TaskExecutor._ANSI_RE.sub('', text).rstrip('\n\r')
             except (UnicodeDecodeError, LookupError):
                 continue
-        # 最终兜底
         return raw.decode('utf-8', errors='replace').rstrip('\n\r')
 
     @staticmethod
@@ -54,12 +52,19 @@ class TaskExecutor:
 
         支持的 command 格式:
         - "python xxx.py" / "python3 xxx.py"  →  [python_exe, "绝对路径/xxx.py"]
+        - "python -c ..." / "python -m ..."   →  [python_exe, "-c/m", ...]
         - "xxx.py"                            →  [python_exe, "绝对路径/xxx.py"]
         - "scrapy crawl xxx"                  →  [python_exe, "-m", "scrapy", "crawl", "xxx"]
         - 其他命令 (如 git pull)              →  通过 shell 直接执行
         """
+        import shlex
         cmd = command.strip()
         lower = cmd.lower()
+
+        # python -c "..." / python -m ... → 保留 python 后面的参数
+        if lower.startswith(('python3 -', 'python -')):
+            parts = shlex.split(cmd)
+            return [python_executable] + parts[1:]
 
         # 去掉 "python xxx" 或 "python3 xxx" 前缀
         if lower.startswith('python3 '):
@@ -78,8 +83,7 @@ class TaskExecutor:
             parts = cmd.split()
             return [python_executable, "-m"] + parts
 
-        # 其他命令（git pull、npm install 等）：通过 shell 直接执行
-        import shlex
+        # 其他命令（git pull、npm install 等）
         return shlex.split(cmd)
 
     # ==================== 状态更新 ====================
@@ -122,7 +126,6 @@ class TaskExecutor:
                 print(f"[执行器] 任务 {task_id} 不存在")
                 return
 
-            # 查询爬虫及其关联的项目配置
             result = await session.execute(
                 select(Crawler)
                 .options(selectinload(Crawler.project))
@@ -136,7 +139,6 @@ class TaskExecutor:
                 print(f"[执行器] 爬虫 {crawler.id} 未关联项目")
                 return
 
-            # 提取执行所需的配置信息
             working_directory = crawler.project.working_directory
             python_executable = crawler.project.python_executable
             command = crawler.command
@@ -168,7 +170,6 @@ class TaskExecutor:
             os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
             loop = asyncio.get_event_loop()
 
-            # 在线程池中启动子进程（绕过 ProactorEventLoop 限制）
             def _start_process():
                 return subprocess.Popen(
                     cmd_args,
@@ -180,7 +181,6 @@ class TaskExecutor:
             process = await loop.run_in_executor(None, _start_process)
             psutil_proc = psutil.Process(process.pid)
 
-            # 记录运行中的任务
             TaskExecutor._running_tasks[task_id] = {
                 'process': process,
                 'psutil': psutil_proc,
@@ -211,11 +211,9 @@ class TaskExecutor:
                 )
 
         except asyncio.CancelledError:
-            # 任务被取消
             await TaskExecutor._update_status(task_id, "cancelled")
             raise
         except Exception as e:
-            # 执行异常
             print(f"[执行器] 任务 {task_id} 执行异常: {e}")
             traceback.print_exc()
             await TaskExecutor._update_status(task_id, "failed", error_message=str(e))
@@ -242,7 +240,6 @@ class TaskExecutor:
 
         try:
             if psutil_proc.is_running():
-                # 优雅终止
                 psutil_proc.terminate()
                 try:
                     loop = asyncio.get_event_loop()
@@ -251,7 +248,6 @@ class TaskExecutor:
                         timeout=5
                     )
                 except asyncio.TimeoutError:
-                    # 超时后强制杀死
                     try:
                         psutil_proc.kill()
                     except Exception:
@@ -262,7 +258,6 @@ class TaskExecutor:
                         pass
             return True
         except (psutil.NoSuchProcess, psutil.AccessDenied):
-            # 进程已结束或无权限
             return True
         except Exception as e:
             print(f"[执行器] 取消任务 {task_id} 失败: {e}")
@@ -327,7 +322,6 @@ class TaskExecutor:
                 except Exception:
                     break
 
-            # 发送完成信号
             await websocket.send_json({"type": "complete"})
         finally:
             TaskExecutor.remove_ws_connection(task_id, websocket)

@@ -1,7 +1,7 @@
 from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 from ..models import TaskExecution, Crawler
@@ -204,19 +204,17 @@ class TaskService:
     @staticmethod
     async def get_statistics(db: AsyncSession, crawler_id: Optional[int] = None) -> dict:
         """Get task execution statistics"""
-        query = select(TaskExecution)
+        agg = select(
+            func.count(TaskExecution.id).label('total'),
+            func.sum(case((TaskExecution.status == 'success', 1), else_=0)).label('success'),
+            func.sum(case((TaskExecution.status == 'failed', 1), else_=0)).label('failed'),
+            func.sum(case((TaskExecution.status == 'running', 1), else_=0)).label('running')
+        )
 
         if crawler_id is not None:
-            query = query.where(TaskExecution.crawler_id == crawler_id)
+            agg = agg.where(TaskExecution.crawler_id == crawler_id)
 
-        result = await db.execute(
-            query.with_entities(
-                func.count(TaskExecution.id).label('total'),
-                func.sum(func.case((TaskExecution.status == 'success', 1), else_=0)).label('success'),
-                func.sum(func.case((TaskExecution.status == 'failed', 1), else_=0)).label('failed'),
-                func.sum(func.case((TaskExecution.status == 'running', 1), else_=0)).label('running')
-            )
-        )
+        result = await db.execute(agg)
 
         row = result.fetchone()
         return {

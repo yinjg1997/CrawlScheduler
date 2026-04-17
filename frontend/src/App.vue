@@ -18,6 +18,10 @@
             router
             class="el-menu-vertical"
           >
+            <el-menu-item index="/dashboard">
+              <el-icon><DataBoard /></el-icon>
+              <span>看板</span>
+            </el-menu-item>
             <el-menu-item index="/projects">
               <el-icon><Folder /></el-icon>
               <span>项目管理</span>
@@ -78,7 +82,7 @@
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import { ArrowDown, Switch } from '@element-plus/icons-vue'
+import { ArrowDown, Switch, DataBoard } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/store/auth'
 
 const route = useRoute()

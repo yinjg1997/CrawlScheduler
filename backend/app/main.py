@@ -9,7 +9,7 @@ import json
 from .database import engine, Base
 from .config import settings
 from .models import User
-from .api import crawlers_router, tasks_router, schedules_router, websocket_router, auth_router, users_router, projects_router
+from .api import crawlers_router, tasks_router, schedules_router, websocket_router, auth_router, users_router, projects_router, dashboard_router
 from .scheduler.scheduler import setup_scheduler, shutdown_scheduler
 
 
@@ -82,6 +82,7 @@ app.include_router(projects_router)
 app.include_router(crawlers_router)
 app.include_router(tasks_router)
 app.include_router(schedules_router)
+app.include_router(dashboard_router)
 app.include_router(websocket_router)
 
 

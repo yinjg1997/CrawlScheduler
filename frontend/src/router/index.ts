@@ -10,7 +10,13 @@ const routes: Array<RouteRecordRaw> = [
   },
   {
     path: '/',
-    redirect: '/crawlers',
+    redirect: '/dashboard',
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: () => import('@/views/Dashboard.vue'),
     meta: { requiresAuth: true }
   },
   {
