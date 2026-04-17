@@ -62,8 +62,8 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column label="爬虫" width="150">
+        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column label="爬虫" min-width="140">
           <template #default="{ row }">
             <span v-if="row.crawler">{{ row.crawler.name }}</span>
             <span v-else class="text-gray-400">#{{ row.crawler_id }}</span>
@@ -83,7 +83,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="命令" width="300" show-overflow-tooltip>
+        <el-table-column label="命令" min-width="250" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.crawler">{{ row.crawler.command }}</span>
             <span v-else class="text-gray-400">-</span>
@@ -100,12 +100,12 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180">
+        <el-table-column prop="created_at" label="创建时间" min-width="170">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280">
+        <el-table-column label="操作" width="240">
           <template #default="{ row }">
             <el-button
               type="primary"
@@ -480,13 +480,7 @@ onUnmounted(() => {
 }
 
 :deep(.el-table) {
-  height: 100%;
-  overflow: hidden;
-}
-
-:deep(.el-table__body-wrapper) {
-  overflow-y: auto;
-  max-height: calc(100vh - 400px);
+  height: 100% !important;
 }
 
 .text-gray-400 {

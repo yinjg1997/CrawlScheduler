@@ -44,18 +44,18 @@
 
     <div class="table-container">
       <el-table :data="schedules" v-loading="store.loading" stripe>
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column label="爬虫" width="150">
+        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column label="爬虫" min-width="150">
           <template #default="{ row }">
             {{ row.crawler?.name || `#${row.crawler_id}` }}
           </template>
         </el-table-column>
-        <el-table-column prop="cron_expression" label="Cron表达式" width="150">
+        <el-table-column prop="cron_expression" label="Cron表达式" min-width="140">
           <template #default="{ row }">
             <el-text class="cron-text">{{ row.cron_expression }}</el-text>
           </template>
         </el-table-column>
-        <el-table-column prop="next_run_time" label="下次运行时间" width="180">
+        <el-table-column prop="next_run_time" label="下次运行时间" min-width="170">
           <template #default="{ row }">
             {{ row.next_run_time ? formatDate(row.next_run_time) : '-' }}
           </template>
@@ -65,7 +65,7 @@
             <el-switch :model-value="row.is_active" @change="toggleSchedule(row)" />
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180">
+        <el-table-column prop="created_at" label="创建时间" min-width="170">
           <template #default="{ row }">
             {{ formatDate(row.created_at) }}
           </template>
@@ -403,19 +403,14 @@ onMounted(async () => {
   align-items: center;
 }
 
-:deep(.el-table) {
-  flex: 1;
-}
-
 .table-container {
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-:deep(.el-table__body-wrapper) {
-  overflow-y: auto;
-  max-height: calc(100vh - 400px);
+:deep(.el-table) {
+  height: 100% !important;
 }
 
 .el-pagination {
